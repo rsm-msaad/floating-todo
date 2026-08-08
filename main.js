@@ -407,33 +407,6 @@ ipcMain.on('settings:set', (event, updated) => {
   broadcastSettings();
 });
 
-ipcMain.on('show-header-menu', () => {
-  const scales = [
-    { label: 'Small',       value: 0.9 },
-    { label: 'Default',     value: 1 },
-    { label: 'Large',       value: 1.15 },
-    { label: 'Extra large', value: 1.3 }
-  ];
-
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'Text size',
-      submenu: scales.map((s) => ({
-        label: s.label,
-        type: 'checkbox',
-        checked: settings.fontScale === s.value,
-        click: () => {
-          settings.fontScale = s.value;
-          saveSettings();
-          broadcastSettings();
-        }
-      }))
-    }
-  ]);
-
-  menu.popup({ window: win });
-});
-
 // ── Migration support ──────────────────────────────────────
 
 ipcMain.on('tasks:migrate', (event, migrated) => {

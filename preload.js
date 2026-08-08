@@ -27,6 +27,5 @@ contextBridge.exposeInMainWorld('shell', {
 
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   setSettings: (s) => ipcRenderer.send('settings:set', s),
-  onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', (_event, s) => callback(s)),
-  showHeaderMenu: () => ipcRenderer.send('show-header-menu')
+  onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', (_event, s) => callback(s))
 });
