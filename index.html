@@ -16,6 +16,7 @@
     --soon:   #E8A54B;
     --later:  #7B94C4;
     --hover: rgba(255, 255, 255, 0.06);
+    --scale: 1;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,14 +55,14 @@
   }
 
   .title {
-    font-size: 11px;
+    font-size: calc(11px * var(--scale));
     font-weight: 600;
     letter-spacing: 0.11em;
     text-transform: uppercase;
   }
 
   .count {
-    font-size: 11px;
+    font-size: calc(11px * var(--scale));
     color: var(--faint);
     letter-spacing: 0.02em;
     font-variant-numeric: tabular-nums;
@@ -92,7 +93,7 @@
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     padding: 2px 0;
     outline: none;
     user-select: text;
@@ -147,7 +148,7 @@
   .label {
     position: relative;
     flex: 1 1 auto;
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     line-height: 1.35;
     word-break: break-word;
     cursor: default;
@@ -194,7 +195,7 @@
     display: grid; place-items: center;
     padding: 0 26px;
     text-align: center;
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     line-height: 1.5;
     color: var(--faint);
   }
@@ -203,7 +204,7 @@
   #clearDone {
     border: 0; background: transparent;
     color: var(--muted);
-    font: inherit; font-size: 11px;
+    font: inherit; font-size: calc(11px * var(--scale));
     padding: 2px 0;
     cursor: default;
     transition: color 120ms ease;
@@ -382,6 +383,19 @@
   document.getElementById('quit').addEventListener('click', () => window.shell.quit());
   document.getElementById('tab').addEventListener('click', () => window.shell.untuck());
 
+  document.querySelector('header').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    window.shell.showHeaderMenu();
+  });
+
+  function applyScale(s) {
+    document.documentElement.style.setProperty('--scale', s);
+  }
+
+  window.shell.onSettingsChanged((s) => {
+    applyScale(s.fontScale);
+  });
+
   window.shell.onTuck(({ tucked, side }) => {
     document.body.classList.toggle('tucked', tucked);
     document.body.classList.toggle('left', tucked && side === 'left');
@@ -394,6 +408,9 @@
   });
 
   async function init() {
+    const s = await window.shell.loadSettings();
+    applyScale(s.fontScale);
+
     items = await window.shell.loadTasks();
 
     // One-time migration from localStorage

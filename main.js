@@ -5,6 +5,7 @@ const fs = require('fs');
 let win = null;
 let detailWin = null;
 let items = [];
+let settings = { fontScale: 1 };
 
 // Edge-tuck state
 let isTucked = false;
@@ -16,6 +17,32 @@ let untuckCooldown = false;
 const TUCK_EDGE_PX = 28;
 const TAB_W = 20;
 const TAB_H = 88;
+
+function settingsFile() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function loadSettings() {
+  try {
+    settings = { fontScale: 1, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) };
+  } catch (err) {
+    settings = { fontScale: 1 };
+  }
+}
+
+function saveSettings() {
+  try {
+    fs.writeFileSync(settingsFile(), JSON.stringify(settings));
+  } catch (err) {}
+}
+
+function broadcastSettings() {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) {
+      w.webContents.send('settings-changed', settings);
+    }
+  }
+}
 
 function tasksFile() {
   return path.join(app.getPath('userData'), 'tasks.json');
@@ -255,6 +282,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
     app.dock.hide();
   }
+  loadSettings();
   loadTasks();
   createWindow();
 
@@ -365,6 +393,45 @@ ipcMain.on('reveal-file', (event, filePath) => {
 
 ipcMain.handle('file-exists', (event, filePath) => {
   return fs.existsSync(filePath);
+});
+
+// ── Settings ───────────────────────────────────────────────
+
+ipcMain.handle('settings:load', () => {
+  return settings;
+});
+
+ipcMain.on('settings:set', (event, updated) => {
+  settings = { ...settings, ...updated };
+  saveSettings();
+  broadcastSettings();
+});
+
+ipcMain.on('show-header-menu', () => {
+  const scales = [
+    { label: 'Small',       value: 0.9 },
+    { label: 'Default',     value: 1 },
+    { label: 'Large',       value: 1.15 },
+    { label: 'Extra large', value: 1.3 }
+  ];
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Text size',
+      submenu: scales.map((s) => ({
+        label: s.label,
+        type: 'checkbox',
+        checked: settings.fontScale === s.value,
+        click: () => {
+          settings.fontScale = s.value;
+          saveSettings();
+          broadcastSettings();
+        }
+      }))
+    }
+  ]);
+
+  menu.popup({ window: win });
 });
 
 // ── Migration support ──────────────────────────────────────

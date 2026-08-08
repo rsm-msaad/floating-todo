@@ -23,5 +23,10 @@ contextBridge.exposeInMainWorld('shell', {
   openFile: (filePath) => ipcRenderer.send('open-file', filePath),
   revealFile: (filePath) => ipcRenderer.send('reveal-file', filePath),
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
-  getPathForFile: (file) => webUtils.getPathForFile(file)
+  getPathForFile: (file) => webUtils.getPathForFile(file),
+
+  loadSettings: () => ipcRenderer.invoke('settings:load'),
+  setSettings: (s) => ipcRenderer.send('settings:set', s),
+  onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', (_event, s) => callback(s)),
+  showHeaderMenu: () => ipcRenderer.send('show-header-menu')
 });
