@@ -202,6 +202,132 @@
   }
   .notes-display a:hover { text-decoration: underline; }
 
+  /* ── Subtasks ───────────────────────────────────────────── */
+  .st-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .st-track {
+    flex: 1 1 auto;
+    height: 3px;
+    background: var(--hairline);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .st-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 260ms ease;
+  }
+  .st-count {
+    flex: 0 0 auto;
+    font-size: calc(10px * var(--scale));
+    font-variant-numeric: tabular-nums;
+    color: var(--faint);
+  }
+
+  .st-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .st-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 4px 4px 2px;
+    border-radius: 5px;
+    transition: background 120ms ease;
+  }
+  .st-row:hover { background: var(--hover); }
+
+  .st-box {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    width: 13px; height: 13px;
+    border: 1.5px solid rgba(255,255,255,0.28);
+    border-radius: 4px;
+    background: transparent;
+    display: grid; place-items: center;
+    cursor: default;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  .st-box:hover { border-color: rgba(255,255,255,0.5); }
+  .st-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .st-box svg { width: 8px; height: 8px; color: #14161A; opacity: 0; transform: scale(0.6); transition: opacity 140ms ease, transform 160ms cubic-bezier(.2,1.4,.4,1); }
+  .st-row.done .st-box { background: var(--accent); border-color: var(--accent); }
+  .st-row.done .st-box svg { opacity: 1; transform: scale(1); }
+
+  .st-text {
+    position: relative;
+    flex: 1 1 auto;
+    font-size: calc(12px * var(--scale));
+    line-height: 1.4;
+    color: var(--text);
+    word-break: break-word;
+    cursor: text;
+    transition: color 220ms ease;
+  }
+  .st-text::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    height: 1px; width: 0;
+    background: currentColor;
+    transition: width 260ms cubic-bezier(.4,0,.2,1);
+  }
+  .st-row.done .st-text { color: var(--faint); }
+  .st-row.done .st-text::after { width: 100%; }
+
+  .st-edit {
+    flex: 1 1 auto;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: calc(12px * var(--scale));
+    line-height: 1.4;
+    padding: 0;
+    outline: none;
+    user-select: text;
+  }
+  .st-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  .st-del {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 4px;
+    background: transparent;
+    color: var(--faint);
+    opacity: 0;
+    cursor: default;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .st-row:hover .st-del { opacity: 1; }
+  .st-del:hover { color: #FF8A8A; background: rgba(255,120,120,0.12); }
+  .st-del:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
+  .st-del svg { width: 8px; height: 8px; }
+
+  .st-input {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: calc(12px * var(--scale));
+    padding: 4px 0;
+    outline: none;
+    user-select: text;
+  }
+  .st-input::placeholder { color: var(--faint); }
+  .st-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
   /* ── Attachments ──────────────────────────────────────────── */
   .att-header {
     display: flex;
@@ -331,6 +457,16 @@
         <div class="notes-display" id="notesDisplay" hidden></div>
       </div>
 
+      <div>
+        <span class="section-label">Subtasks</span>
+        <div class="st-progress" id="stProgress" hidden>
+          <div class="st-track"><div class="st-fill" id="stFill"></div></div>
+          <span class="st-count" id="stCount"></span>
+        </div>
+        <ul class="st-list" id="stList"></ul>
+        <input class="st-input" id="stInput" type="text" placeholder="Add a subtask" autocomplete="off" spellcheck="false" />
+      </div>
+
       <div class="att-section">
         <div class="att-header">
           <span class="section-label">Attachments</span>
@@ -355,6 +491,12 @@
   const closeIcon = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>';
   const fileIcon = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1H3.5A1.5 1.5 0 0 0 2 2.5v9A1.5 1.5 0 0 0 3.5 13h7a1.5 1.5 0 0 0 1.5-1.5V5L8 1Z"/><path d="M8 1v4h4"/></svg>';
   const notesDisplay = document.getElementById('notesDisplay');
+  const stList = document.getElementById('stList');
+  const stProgress = document.getElementById('stProgress');
+  const stFill = document.getElementById('stFill');
+  const stCount = document.getElementById('stCount');
+  const stInput = document.getElementById('stInput');
+  const checkSvg = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.3 4.7 9 10 3.4"/></svg>';
 
   const URL_RE = /(https?:\/\/[^\s<]+|mailto:[^\s<]+|message:\/\/[^\s<]+)/gi;
   const TRAIL_PUNCT = /[.,;:)\]]+$/;
@@ -408,7 +550,7 @@
   }
 
   function loadTask(t) {
-    task = { ...t, attachments: t.attachments ? [...t.attachments] : [] };
+    task = { ...t, attachments: t.attachments ? [...t.attachments] : [], subtasks: t.subtasks ? t.subtasks.map((s) => ({ ...s })) : [] };
 
     titleEl.value = task.text;
     notesEl.value = task.notes || '';
@@ -418,6 +560,7 @@
     doneBtn.classList.toggle('checked', !!task.done);
     priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
 
+    renderSubtasks();
     renderAttachments();
   }
 
@@ -508,6 +651,82 @@
       priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
       commitSave();
     });
+  });
+
+  // ── Subtasks ──
+
+  function renderSubtasks() {
+    stList.innerHTML = '';
+    const total = task.subtasks.length;
+    const done = task.subtasks.filter((s) => s.done).length;
+    stProgress.hidden = total === 0;
+    if (total > 0) {
+      stFill.style.width = Math.round((done / total) * 100) + '%';
+      stCount.textContent = done + '/' + total;
+    }
+
+    task.subtasks.forEach((sub) => {
+      const row = document.createElement('li');
+      row.className = 'st-row' + (sub.done ? ' done' : '');
+
+      const box = document.createElement('button');
+      box.className = 'st-box';
+      box.innerHTML = checkSvg;
+      box.setAttribute('aria-label', sub.done ? 'Mark as not done' : 'Mark as done');
+      box.addEventListener('click', () => {
+        sub.done = !sub.done;
+        commitSave();
+        renderSubtasks();
+      });
+
+      const text = document.createElement('span');
+      text.className = 'st-text';
+      text.textContent = sub.text;
+      text.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.className = 'st-edit';
+        input.value = sub.text;
+        row.replaceChild(input, text);
+        input.focus();
+        const finish = () => {
+          const v = input.value.trim();
+          if (v) sub.text = v;
+          text.textContent = sub.text;
+          row.replaceChild(text, input);
+          commitSave();
+        };
+        input.addEventListener('blur', finish);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          if (e.key === 'Escape') { input.value = sub.text; input.blur(); }
+        });
+      });
+
+      const del = document.createElement('button');
+      del.className = 'st-del';
+      del.setAttribute('aria-label', 'Delete subtask');
+      del.innerHTML = closeIcon;
+      del.addEventListener('click', () => {
+        task.subtasks = task.subtasks.filter((s) => s.id !== sub.id);
+        commitSave();
+        renderSubtasks();
+      });
+
+      row.append(box, text, del);
+      stList.appendChild(row);
+    });
+  }
+
+  stInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const text = stInput.value.trim();
+      if (!text) return;
+      if (!task.subtasks) task.subtasks = [];
+      task.subtasks.push({ id: Date.now() + Math.random(), text, done: false });
+      stInput.value = '';
+      commitSave();
+      renderSubtasks();
+    }
   });
 
   // ── Add files ──
@@ -603,8 +822,10 @@
         task.done = updated.done;
         task.priority = updated.priority;
         task.attachments = updated.attachments ? [...updated.attachments] : [];
+        task.subtasks = updated.subtasks ? updated.subtasks.map((s) => ({ ...s })) : [];
         doneBtn.classList.toggle('checked', !!task.done);
         priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
+        renderSubtasks();
         renderAttachments();
       }
     } else {
