@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -186,6 +186,25 @@ ipcMain.handle('tasks:load', () => {
   } catch (err) {
     return [];
   }
+});
+
+ipcMain.on('show-task-menu', (event, id, priority) => {
+  const send = (action) => {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('task-menu-choice', { id, action });
+  };
+
+  const menu = Menu.buildFromTemplate([
+    { label: 'Urgent', type: 'checkbox', checked: priority === 'urgent', click: () => send('urgent') },
+    { label: 'Soon',   type: 'checkbox', checked: priority === 'soon',   click: () => send('soon') },
+    { label: 'Later',  type: 'checkbox', checked: priority === 'later',  click: () => send('later') },
+    { type: 'separator' },
+    { label: 'Clear priority', enabled: !!priority, click: () => send('clear') },
+    { type: 'separator' },
+    { label: 'Delete task', click: () => send('delete') }
+  ]);
+
+  menu.popup({ window: win });
 });
 
 ipcMain.on('tasks:save', (event, items) => {

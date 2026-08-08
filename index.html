@@ -5,7 +5,7 @@
 <title>Checklist</title>
 <style>
   :root {
-    --bg: rgba(22, 22, 26, 0.72);
+    --bg: rgba(22, 22, 26, 0.94);
     --stroke: rgba(255, 255, 255, 0.10);
     --hairline: rgba(255, 255, 255, 0.07);
     --text: #ECECEF;
@@ -145,32 +145,6 @@
   .box svg { width: 9px; height: 9px; color: #14161A; opacity: 0; transform: scale(0.6); transition: opacity 140ms ease, transform 160ms cubic-bezier(.2,1.4,.4,1); }
   li.done .box { background: var(--accent); border-color: var(--accent); }
   li.done .box svg { opacity: 1; transform: scale(1); }
-
-  .dots {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-top: 2px;
-    opacity: 0;
-    transition: opacity 120ms ease;
-  }
-  li:hover .dots, .dots:focus-within { opacity: 1; }
-  li.has-priority .dots { opacity: 1; }
-  li.done .dots { opacity: 0.3; }
-
-  .dot {
-    width: 8px; height: 8px;
-    border: 0; border-radius: 50%;
-    opacity: 0.3;
-    cursor: default;
-    transition: opacity 140ms ease;
-  }
-  .dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .dot.urgent { background: var(--urgent); }
-  .dot.soon   { background: var(--soon); }
-  .dot.later  { background: var(--later); }
-  .dot.active { opacity: 1; }
 
   .label {
     position: relative;
@@ -339,34 +313,14 @@
       label.className = 'label';
       label.textContent = item.text;
 
-      const dotsGroup = document.createElement('div');
-      dotsGroup.className = 'dots';
-
-      const priNames = ['urgent', 'soon', 'later'];
-      const dotBtns = [];
-      priNames.forEach((p) => {
-        const d = document.createElement('button');
-        d.className = 'dot ' + p + (item.priority === p ? ' active' : '');
-        d.setAttribute('aria-label', p + (item.priority === p ? ' (active)' : ''));
-        d.addEventListener('click', () => {
-          item.priority = item.priority === p ? undefined : p;
-          dotBtns.forEach((b, i) => {
-            const active = item.priority === priNames[i];
-            b.classList.toggle('active', active);
-            b.setAttribute('aria-label', priNames[i] + (active ? ' (active)' : ''));
-          });
-          li.classList.toggle('has-priority', !!item.priority);
-          li.className = li.className.replace(/ ?pri-\w+/g, '');
-          if (item.priority) li.classList.add('pri-' + item.priority);
-          save();
-        });
-        dotBtns.push(d);
-        dotsGroup.appendChild(d);
-      });
-
       if (item.priority) {
-        li.classList.add('has-priority', 'pri-' + item.priority);
+        li.classList.add('pri-' + item.priority);
       }
+
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        window.shell.showTaskMenu(item.id, item.priority);
+      });
 
       const del = document.createElement('button');
       del.className = 'del';
@@ -378,7 +332,7 @@
         render();
       });
 
-      li.append(box, label, dotsGroup, del);
+      li.append(box, label, del);
       list.appendChild(li);
     });
 
@@ -421,6 +375,19 @@
     document.body.classList.toggle('tucked', tucked);
     document.body.classList.toggle('left', tucked && side === 'left');
     document.body.classList.toggle('right', tucked && side === 'right');
+  });
+
+  window.shell.onTaskMenuChoice(({ id, action }) => {
+    if (action === 'delete') {
+      items = items.filter((entry) => entry.id !== id);
+    } else {
+      const item = items.find((entry) => entry.id === id);
+      if (item) {
+        item.priority = action === 'clear' ? undefined : action;
+      }
+    }
+    save();
+    render();
   });
 
   async function init() {
