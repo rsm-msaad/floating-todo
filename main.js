@@ -1,15 +1,17 @@
-const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let win = null;
+let detailWin = null;
+let items = [];
 
 // Edge-tuck state
 let isTucked = false;
-let tuckSide = null;          // 'left' | 'right'
-let preTuckBounds = null;     // bounds before tucking
-let tuckMoveTimer = null;     // debounce timer for 'moved'
-let untuckCooldown = false;   // suppress re-tuck after restore
+let tuckSide = null;
+let preTuckBounds = null;
+let tuckMoveTimer = null;
+let untuckCooldown = false;
 
 const TUCK_EDGE_PX = 28;
 const TAB_W = 20;
@@ -23,6 +25,31 @@ function stateFile() {
   return path.join(app.getPath('userData'), 'window-state.json');
 }
 
+function loadTasks() {
+  try {
+    items = JSON.parse(fs.readFileSync(tasksFile(), 'utf8'));
+  } catch (err) {
+    items = [];
+  }
+}
+
+function saveTasks() {
+  try {
+    fs.writeFileSync(tasksFile(), JSON.stringify(items));
+  } catch (err) {
+    // best-effort
+  }
+}
+
+function broadcastTasks() {
+  const allWindows = BrowserWindow.getAllWindows();
+  for (const w of allWindows) {
+    if (!w.isDestroyed()) {
+      w.webContents.send('tasks-changed', items);
+    }
+  }
+}
+
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
@@ -34,12 +61,9 @@ function loadState() {
 function saveState() {
   if (!win || win.isDestroyed()) return;
   try {
-    // Never persist the tiny tab bounds — store the real window bounds.
     const bounds = isTucked ? preTuckBounds : win.getBounds();
     fs.writeFileSync(stateFile(), JSON.stringify(bounds));
-  } catch (err) {
-    // position is a nice to have, never block on it
-  }
+  } catch (err) {}
 }
 
 function sendTuckState() {
@@ -77,7 +101,6 @@ function untuck() {
   const area = screen.getPrimaryDisplay().workArea;
   const b = { ...preTuckBounds };
 
-  // Nudge inward so the window doesn't land back in the tuck zone.
   if (tuckSide === 'left') {
     b.x = Math.max(area.x + TUCK_EDGE_PX + 4, b.x);
   } else {
@@ -95,8 +118,6 @@ function untuck() {
   sendTuckState();
   saveState();
 
-  // Suppress re-tuck for 900ms so the 'moved' event from the animated
-  // restore doesn't immediately tuck the window again.
   untuckCooldown = true;
   setTimeout(() => { untuckCooldown = false; }, 900);
 }
@@ -124,7 +145,6 @@ function onWindowMoved() {
 function createWindow() {
   const saved = loadState();
   const area = screen.getPrimaryDisplay().workArea;
-
   const defaultHeight = saved && saved.height > 120 ? saved.height : 380;
 
   win = new BrowserWindow({
@@ -151,7 +171,6 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, 'index.html'));
 
-  // Float above normal windows, and follow you onto every Space and fullscreen app.
   win.setAlwaysOnTop(true, 'floating');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -159,11 +178,69 @@ function createWindow() {
   win.on('resized', saveState);
 }
 
+function openDetail(taskId) {
+  const item = items.find((i) => i.id === taskId);
+  if (!item) return;
+
+  if (detailWin && !detailWin.isDestroyed()) {
+    detailWin.webContents.send('show-task', item);
+    detailWin.show();
+    detailWin.focus();
+    return;
+  }
+
+  const mainBounds = win && !win.isDestroyed() ? win.getBounds() : null;
+  const area = screen.getPrimaryDisplay().workArea;
+  const dw = 420;
+  const dh = 480;
+  let dx, dy;
+  if (mainBounds) {
+    dx = Math.round(mainBounds.x + mainBounds.width / 2 - dw / 2);
+    dy = Math.round(mainBounds.y + mainBounds.height / 2 - dh / 2);
+  } else {
+    dx = Math.round(area.x + area.width / 2 - dw / 2);
+    dy = Math.round(area.y + area.height / 2 - dh / 2);
+  }
+
+  detailWin = new BrowserWindow({
+    width: dw,
+    height: dh,
+    x: dx,
+    y: dy,
+    minWidth: 320,
+    minHeight: 300,
+    frame: false,
+    transparent: true,
+    hasShadow: true,
+    resizable: true,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  detailWin.loadFile(path.join(__dirname, 'detail.html'));
+  detailWin.setAlwaysOnTop(true, 'floating');
+  detailWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  detailWin.webContents.once('did-finish-load', () => {
+    if (!detailWin.isDestroyed()) {
+      detailWin.webContents.send('show-task', item);
+    }
+  });
+
+  detailWin.on('closed', () => { detailWin = null; });
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
-    // No Dock icon, no Cmd+Tab entry. It behaves like an overlay.
     app.dock.hide();
   }
+  loadTasks();
   createWindow();
 
   app.on('activate', () => {
@@ -180,18 +257,63 @@ ipcMain.on('untuck', () => {
   untuck();
 });
 
+// ── Tasks IPC ──────────────────────────────────────────────
+
 ipcMain.handle('tasks:load', () => {
-  try {
-    return JSON.parse(fs.readFileSync(tasksFile(), 'utf8'));
-  } catch (err) {
-    return [];
+  return items;
+});
+
+ipcMain.on('tasks:add', (event, item) => {
+  items.push(item);
+  saveTasks();
+  broadcastTasks();
+});
+
+ipcMain.on('tasks:update', (event, updated) => {
+  const idx = items.findIndex((i) => i.id === updated.id);
+  if (idx !== -1) {
+    items[idx] = updated;
+    saveTasks();
+    broadcastTasks();
   }
 });
 
+ipcMain.on('tasks:delete', (event, id) => {
+  items = items.filter((i) => i.id !== id);
+  saveTasks();
+  broadcastTasks();
+});
+
+ipcMain.on('tasks:clear-done', () => {
+  items = items.filter((i) => !i.done);
+  saveTasks();
+  broadcastTasks();
+});
+
+ipcMain.on('open-detail', (event, taskId) => {
+  openDetail(taskId);
+});
+
+ipcMain.on('close-detail', () => {
+  if (detailWin && !detailWin.isDestroyed()) {
+    detailWin.close();
+  }
+});
+
+// ── Context menu ───────────────────────────────────────────
+
 ipcMain.on('show-task-menu', (event, id, priority) => {
   const send = (action) => {
-    if (!win || win.isDestroyed()) return;
-    win.webContents.send('task-menu-choice', { id, action });
+    if (action === 'delete') {
+      items = items.filter((i) => i.id !== id);
+    } else {
+      const item = items.find((i) => i.id === id);
+      if (item) {
+        item.priority = action === 'clear' ? undefined : action;
+      }
+    }
+    saveTasks();
+    broadcastTasks();
   };
 
   const menu = Menu.buildFromTemplate([
@@ -204,15 +326,38 @@ ipcMain.on('show-task-menu', (event, id, priority) => {
     { label: 'Delete task', click: () => send('delete') }
   ]);
 
-  menu.popup({ window: win });
+  const w = BrowserWindow.fromWebContents(event.sender);
+  menu.popup({ window: w });
 });
 
-ipcMain.on('tasks:save', (event, items) => {
-  try {
-    fs.writeFileSync(tasksFile(), JSON.stringify(items));
-  } catch (err) {
-    // best-effort
-  }
+// ── Attachments ────────────────────────────────────────────
+
+ipcMain.handle('pick-files', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections']
+  });
+  if (result.canceled) return [];
+  return result.filePaths.map((p) => ({ name: path.basename(p), path: p }));
+});
+
+ipcMain.on('open-file', (event, filePath) => {
+  shell.openPath(filePath);
+});
+
+ipcMain.on('reveal-file', (event, filePath) => {
+  shell.showItemInFolder(filePath);
+});
+
+ipcMain.handle('file-exists', (event, filePath) => {
+  return fs.existsSync(filePath);
+});
+
+// ── Migration support ──────────────────────────────────────
+
+ipcMain.on('tasks:migrate', (event, migrated) => {
+  items = migrated;
+  saveTasks();
+  broadcastTasks();
 });
 
 app.on('window-all-closed', () => {

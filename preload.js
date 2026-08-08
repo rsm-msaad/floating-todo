@@ -1,11 +1,27 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('shell', {
   quit: () => ipcRenderer.send('quit-app'),
   untuck: () => ipcRenderer.send('untuck'),
   onTuck: (callback) => ipcRenderer.on('tuck-state', (_event, state) => callback(state)),
+
   loadTasks: () => ipcRenderer.invoke('tasks:load'),
-  saveTasks: (items) => ipcRenderer.send('tasks:save', items),
+  addTask: (item) => ipcRenderer.send('tasks:add', item),
+  updateTask: (item) => ipcRenderer.send('tasks:update', item),
+  deleteTask: (id) => ipcRenderer.send('tasks:delete', id),
+  clearDone: () => ipcRenderer.send('tasks:clear-done'),
+  migrateTasks: (items) => ipcRenderer.send('tasks:migrate', items),
+  onTasksChanged: (callback) => ipcRenderer.on('tasks-changed', (_event, data) => callback(data)),
+
   showTaskMenu: (id, priority) => ipcRenderer.send('show-task-menu', id, priority),
-  onTaskMenuChoice: (callback) => ipcRenderer.on('task-menu-choice', (_event, data) => callback(data))
+
+  openDetail: (taskId) => ipcRenderer.send('open-detail', taskId),
+  closeDetail: () => ipcRenderer.send('close-detail'),
+  onShowTask: (callback) => ipcRenderer.on('show-task', (_event, task) => callback(task)),
+
+  pickFiles: () => ipcRenderer.invoke('pick-files'),
+  openFile: (filePath) => ipcRenderer.send('open-file', filePath),
+  revealFile: (filePath) => ipcRenderer.send('reveal-file', filePath),
+  fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
+  getPathForFile: (file) => webUtils.getPathForFile(file)
 });

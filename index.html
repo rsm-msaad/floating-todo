@@ -42,7 +42,6 @@
     overflow: hidden;
   }
 
-  /* Header, also the drag handle */
   header {
     -webkit-app-region: drag;
     flex: 0 0 auto;
@@ -86,7 +85,6 @@
 
   .body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 
-  /* Composer */
   .composer { flex: 0 0 auto; padding: 10px 14px; border-top: 1px solid var(--hairline); }
   #new {
     width: 100%;
@@ -101,7 +99,6 @@
   }
   #new::placeholder { color: var(--faint); }
 
-  /* List */
   ul { flex: 1 1 auto; list-style: none; overflow-y: auto; padding: 8px 6px 6px 8px; }
   ul::-webkit-scrollbar { width: 8px; }
   ul::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
@@ -110,13 +107,13 @@
   li {
     display: flex;
     align-items: flex-start;
-    flex-wrap: wrap;
     gap: 9px;
     padding: 6px 4px 6px 6px;
     border-left: 2px solid transparent;
     border-radius: 7px;
     animation: rise 180ms cubic-bezier(.2,.8,.3,1);
     transition: background 160ms ease, border-color 160ms ease;
+    cursor: default;
   }
   li:hover { background: var(--hover); }
   li.pri-urgent { background: rgba(240,115,106,0.13); border-left-color: var(--urgent); }
@@ -167,7 +164,7 @@
   li.done .label { color: var(--faint); }
   li.done .label::after { width: 100%; }
 
-  .has-notes-marker {
+  .marker {
     display: inline-block;
     width: 4px; height: 4px;
     border-radius: 50%;
@@ -175,36 +172,6 @@
     margin-left: 5px;
     vertical-align: middle;
   }
-
-  .notes-wrap {
-    flex-basis: 100%;
-    margin-left: 24px;
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    transition: max-height 180ms ease, opacity 180ms ease;
-  }
-  .notes-wrap.open {
-    opacity: 1;
-  }
-
-  .notes-wrap textarea {
-    display: block;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
-    line-height: 1.4;
-    padding: 4px 0 2px;
-    resize: none;
-    outline: none;
-    overflow: hidden;
-    user-select: text;
-  }
-  .notes-wrap textarea::placeholder { color: var(--faint); }
-  .notes-wrap textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
   .del {
     flex: 0 0 auto;
@@ -272,13 +239,11 @@
   body.tucked .body { display: none; }
   body.tucked .tab { display: grid; place-items: center; }
 
-  /* Round only the outward-facing corners */
   body.tucked.right .panel,
   body.tucked.right .tab { border-radius: 8px 0 0 8px; }
   body.tucked.left .panel,
   body.tucked.left .tab { border-radius: 0 8px 8px 0; }
 
-  /* Chevron points away from the edge it's pinned to */
   body.tucked.left .tab svg { transform: rotate(-90deg); }
   body.tucked.right .tab svg { transform: rotate(90deg); }
 
@@ -324,8 +289,6 @@
 
   let items = [];
 
-  const save = () => window.shell.saveTasks(items);
-
   const icons = {
     check: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.3 4.7 9 10 3.4"/></svg>',
     close: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>'
@@ -337,89 +300,35 @@
     items.forEach((item) => {
       const li = document.createElement('li');
       li.className = item.done ? 'done' : '';
+      if (item.priority) li.classList.add('pri-' + item.priority);
 
       const box = document.createElement('button');
       box.className = 'box';
       box.setAttribute('aria-label', item.done ? 'Mark as not done' : 'Mark as done');
       box.innerHTML = icons.check;
-      box.addEventListener('click', () => {
+      box.addEventListener('click', (e) => {
+        e.stopPropagation();
         item.done = !item.done;
-        li.classList.toggle('done', item.done);
-        box.setAttribute('aria-label', item.done ? 'Mark as not done' : 'Mark as done');
-        save();
-        refreshMeta();
+        window.shell.updateTask({ ...item });
       });
 
       const label = document.createElement('span');
       label.className = 'label';
-      label.setAttribute('role', 'button');
-      label.setAttribute('tabindex', '0');
-      label.setAttribute('aria-expanded', 'false');
       label.textContent = item.text;
-      if (item.notes) {
-        const marker = document.createElement('span');
-        marker.className = 'has-notes-marker';
-        label.appendChild(marker);
+
+      const hasNotes = item.notes && item.notes.trim();
+      const attCount = item.attachments ? item.attachments.length : 0;
+      if (hasNotes) {
+        const m = document.createElement('span');
+        m.className = 'marker';
+        m.title = 'Has notes';
+        label.appendChild(m);
       }
-
-      const notesWrap = document.createElement('div');
-      notesWrap.className = 'notes-wrap';
-      const textarea = document.createElement('textarea');
-      textarea.placeholder = 'Notes';
-      textarea.rows = 1;
-      textarea.value = item.notes || '';
-      notesWrap.appendChild(textarea);
-
-      function autoGrow() {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
-      }
-
-      let saveTimer = null;
-      textarea.addEventListener('input', () => {
-        item.notes = textarea.value;
-        autoGrow();
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(save, 300);
-      });
-      textarea.addEventListener('blur', () => {
-        clearTimeout(saveTimer);
-        item.notes = textarea.value;
-        save();
-      });
-      textarea.addEventListener('click', (e) => e.stopPropagation());
-      textarea.addEventListener('contextmenu', (e) => e.stopPropagation());
-
-      function toggleNotes() {
-        const opening = !notesWrap.classList.contains('open');
-        if (opening) {
-          notesWrap.classList.add('open');
-          autoGrow();
-          notesWrap.style.maxHeight = Math.max(textarea.scrollHeight + 8, 30) + 'px';
-          label.setAttribute('aria-expanded', 'true');
-          textarea.addEventListener('input', () => {
-            notesWrap.style.maxHeight = Math.max(textarea.scrollHeight + 8, 30) + 'px';
-          });
-        } else {
-          notesWrap.classList.remove('open');
-          notesWrap.style.maxHeight = '0';
-          label.setAttribute('aria-expanded', 'false');
-        }
-      }
-
-      label.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleNotes();
-      });
-      label.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggleNotes();
-        }
-      });
-
-      if (item.priority) {
-        li.classList.add('pri-' + item.priority);
+      if (attCount > 0) {
+        const m = document.createElement('span');
+        m.className = 'marker';
+        m.title = attCount + ' attachment' + (attCount > 1 ? 's' : '');
+        label.appendChild(m);
       }
 
       li.addEventListener('contextmenu', (e) => {
@@ -427,17 +336,20 @@
         window.shell.showTaskMenu(item.id, item.priority);
       });
 
+      li.addEventListener('click', () => {
+        window.shell.openDetail(item.id);
+      });
+
       const del = document.createElement('button');
       del.className = 'del';
       del.setAttribute('aria-label', 'Delete task');
       del.innerHTML = icons.close;
-      del.addEventListener('click', () => {
-        items = items.filter((entry) => entry.id !== item.id);
-        save();
-        render();
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.shell.deleteTask(item.id);
       });
 
-      li.append(box, label, del, notesWrap);
+      li.append(box, label, del);
       list.appendChild(li);
     });
 
@@ -457,23 +369,17 @@
     if (event.key === 'Enter') {
       const text = input.value.trim();
       if (!text) return;
-      items.push({ id: Date.now() + Math.random(), text, done: false });
+      window.shell.addTask({ id: Date.now() + Math.random(), text, done: false });
       input.value = '';
-      save();
-      render();
-      list.scrollTop = list.scrollHeight;
     }
     if (event.key === 'Escape') input.blur();
   });
 
   document.getElementById('clearDone').addEventListener('click', () => {
-    items = items.filter((item) => !item.done);
-    save();
-    render();
+    window.shell.clearDone();
   });
 
   document.getElementById('quit').addEventListener('click', () => window.shell.quit());
-
   document.getElementById('tab').addEventListener('click', () => window.shell.untuck());
 
   window.shell.onTuck(({ tucked, side }) => {
@@ -482,16 +388,8 @@
     document.body.classList.toggle('right', tucked && side === 'right');
   });
 
-  window.shell.onTaskMenuChoice(({ id, action }) => {
-    if (action === 'delete') {
-      items = items.filter((entry) => entry.id !== id);
-    } else {
-      const item = items.find((entry) => entry.id === id);
-      if (item) {
-        item.priority = action === 'clear' ? undefined : action;
-      }
-    }
-    save();
+  window.shell.onTasksChanged((newItems) => {
+    items = newItems;
     render();
   });
 
@@ -504,7 +402,7 @@
         const old = JSON.parse(localStorage.getItem(KEY));
         if (old && old.length) {
           items = old;
-          save();
+          window.shell.migrateTasks(items);
           localStorage.removeItem(KEY);
         }
       } catch (err) { /* ignore */ }
