@@ -112,10 +112,21 @@
     align-items: flex-start;
     gap: 9px;
     padding: 6px 4px 6px 6px;
+    border-left: 2px solid transparent;
     border-radius: 7px;
     animation: rise 180ms cubic-bezier(.2,.8,.3,1);
+    transition: background 160ms ease, border-color 160ms ease;
   }
   li:hover { background: var(--hover); }
+  li.pri-urgent { background: rgba(240,115,106,0.13); border-left-color: var(--urgent); }
+  li.pri-urgent:hover { background: rgba(240,115,106,0.18); }
+  li.pri-soon   { background: rgba(232,165,75,0.13); border-left-color: var(--soon); }
+  li.pri-soon:hover   { background: rgba(232,165,75,0.18); }
+  li.pri-later  { background: rgba(123,148,196,0.13); border-left-color: var(--later); }
+  li.pri-later:hover  { background: rgba(123,148,196,0.18); }
+  li.done.pri-urgent { background: rgba(240,115,106,0.06); }
+  li.done.pri-soon   { background: rgba(232,165,75,0.06); }
+  li.done.pri-later  { background: rgba(123,148,196,0.06); }
   @keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
   .box {
@@ -135,23 +146,31 @@
   li.done .box { background: var(--accent); border-color: var(--accent); }
   li.done .box svg { opacity: 1; transform: scale(1); }
 
-  .dot {
+  .dots {
     flex: 0 0 auto;
-    width: 9px; height: 9px;
-    margin-top: 4px;
-    margin-right: -5px;
-    border: 0; border-radius: 50%;
-    background: var(--faint);
-    opacity: 0.35;
-    cursor: default;
-    transition: background 140ms ease, opacity 140ms ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 120ms ease;
   }
-  li:hover .dot.untagged { opacity: 1; }
-  .dot.urgent { background: var(--urgent); opacity: 1; }
-  .dot.soon   { background: var(--soon);   opacity: 1; }
-  .dot.later  { background: var(--later);  opacity: 1; }
-  li.done .dot { opacity: 0.3; }
+  li:hover .dots, .dots:focus-within { opacity: 1; }
+  li.has-priority .dots { opacity: 1; }
+  li.done .dots { opacity: 0.3; }
+
+  .dot {
+    width: 8px; height: 8px;
+    border: 0; border-radius: 50%;
+    opacity: 0.3;
+    cursor: default;
+    transition: opacity 140ms ease;
+  }
   .dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .dot.urgent { background: var(--urgent); }
+  .dot.soon   { background: var(--soon); }
+  .dot.later  { background: var(--later); }
+  .dot.active { opacity: 1; }
 
   .label {
     position: relative;
@@ -316,21 +335,38 @@
         refreshMeta();
       });
 
-      const priorities = [undefined, 'urgent', 'soon', 'later'];
-      const dot = document.createElement('button');
-      dot.className = 'dot' + (item.priority ? ' ' + item.priority : ' untagged');
-      dot.setAttribute('aria-label', item.priority || 'no priority');
-      dot.addEventListener('click', () => {
-        const idx = priorities.indexOf(item.priority);
-        item.priority = priorities[(idx + 1) % priorities.length];
-        dot.className = 'dot' + (item.priority ? ' ' + item.priority : ' untagged');
-        dot.setAttribute('aria-label', item.priority || 'no priority');
-        save();
-      });
-
       const label = document.createElement('span');
       label.className = 'label';
       label.textContent = item.text;
+
+      const dotsGroup = document.createElement('div');
+      dotsGroup.className = 'dots';
+
+      const priNames = ['urgent', 'soon', 'later'];
+      const dotBtns = [];
+      priNames.forEach((p) => {
+        const d = document.createElement('button');
+        d.className = 'dot ' + p + (item.priority === p ? ' active' : '');
+        d.setAttribute('aria-label', p + (item.priority === p ? ' (active)' : ''));
+        d.addEventListener('click', () => {
+          item.priority = item.priority === p ? undefined : p;
+          dotBtns.forEach((b, i) => {
+            const active = item.priority === priNames[i];
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-label', priNames[i] + (active ? ' (active)' : ''));
+          });
+          li.classList.toggle('has-priority', !!item.priority);
+          li.className = li.className.replace(/ ?pri-\w+/g, '');
+          if (item.priority) li.classList.add('pri-' + item.priority);
+          save();
+        });
+        dotBtns.push(d);
+        dotsGroup.appendChild(d);
+      });
+
+      if (item.priority) {
+        li.classList.add('has-priority', 'pri-' + item.priority);
+      }
 
       const del = document.createElement('button');
       del.className = 'del';
@@ -342,7 +378,7 @@
         render();
       });
 
-      li.append(box, dot, label, del);
+      li.append(box, label, dotsGroup, del);
       list.appendChild(li);
     });
 
