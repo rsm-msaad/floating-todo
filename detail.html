@@ -181,7 +181,6 @@
     overflow: hidden;
     user-select: text;
   }
-  #notes::placeholder { color: var(--faint); }
   #notes:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 
   /* ── Attachments ──────────────────────────────────────────── */
@@ -255,7 +254,13 @@
   .att-remove svg { width: 8px; height: 8px; }
 
   /* ── Drop zone ────────────────────────────────────────────── */
-  .drop-active .panel {
+  .att-section {
+    border: 1px dashed transparent;
+    border-radius: 8px;
+    padding: 6px;
+    transition: border-color 140ms ease;
+  }
+  .drop-active .att-section {
     border-color: var(--accent);
   }
 
@@ -264,7 +269,7 @@
     text-align: center;
     font-size: 11px;
     color: var(--accent);
-    padding: 8px 0;
+    padding: 6px 0 2px;
   }
   .drop-active .drop-hint { display: block; }
 
@@ -303,16 +308,16 @@
 
       <div>
         <span class="section-label">Notes</span>
-        <textarea id="notes" placeholder="Notes" rows="1"></textarea>
+        <textarea id="notes" rows="1"></textarea>
       </div>
 
-      <div>
+      <div class="att-section">
         <div class="att-header">
           <span class="section-label">Attachments</span>
           <button class="att-add" id="addFiles">+ Add files</button>
         </div>
         <ul class="att-list" id="attList"></ul>
-        <p class="drop-hint">Drop files here</p>
+        <p class="drop-hint">Drop to attach</p>
       </div>
     </div>
   </div>
