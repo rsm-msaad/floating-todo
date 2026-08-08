@@ -178,6 +178,16 @@ function createWindow() {
   win.on('resized', saveState);
 }
 
+function showMainWindow() {
+  if (!win || win.isDestroyed() || win.isVisible()) return;
+  win.show();
+}
+
+function hideMainWindow() {
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  win.hide();
+}
+
 function openDetail(taskId) {
   const item = items.find((i) => i.id === taskId);
   if (!item) return;
@@ -186,6 +196,7 @@ function openDetail(taskId) {
     detailWin.webContents.send('show-task', item);
     detailWin.show();
     detailWin.focus();
+    hideMainWindow();
     return;
   }
 
@@ -230,10 +241,14 @@ function openDetail(taskId) {
   detailWin.webContents.once('did-finish-load', () => {
     if (!detailWin.isDestroyed()) {
       detailWin.webContents.send('show-task', item);
+      hideMainWindow();
     }
   });
 
-  detailWin.on('closed', () => { detailWin = null; });
+  detailWin.on('closed', () => {
+    detailWin = null;
+    showMainWindow();
+  });
 }
 
 app.whenReady().then(() => {
