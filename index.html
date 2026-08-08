@@ -335,6 +335,13 @@
         m.title = attCount + ' attachment' + (attCount > 1 ? 's' : '');
         label.appendChild(m);
       }
+      const linkCount = item.links ? item.links.length : 0;
+      if (linkCount > 0) {
+        const m = document.createElement('span');
+        m.className = 'marker';
+        m.title = linkCount + ' link' + (linkCount > 1 ? 's' : '');
+        label.appendChild(m);
+      }
 
       li.addEventListener('contextmenu', (e) => {
         e.preventDefault();

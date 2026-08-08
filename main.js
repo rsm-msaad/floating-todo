@@ -395,6 +395,18 @@ ipcMain.handle('file-exists', (event, filePath) => {
   return fs.existsSync(filePath);
 });
 
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    const parsed = new URL(url);
+    const allowed = ['http:', 'https:', 'mailto:', 'message:'];
+    if (!allowed.includes(parsed.protocol)) return false;
+    await shell.openExternal(url);
+    return true;
+  } catch (err) {
+    return false;
+  }
+});
+
 // ── Settings ───────────────────────────────────────────────
 
 ipcMain.handle('settings:load', () => {

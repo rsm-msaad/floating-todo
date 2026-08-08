@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('shell', {
   revealFile: (filePath) => ipcRenderer.send('reveal-file', filePath),
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   setSettings: (s) => ipcRenderer.send('settings:set', s),

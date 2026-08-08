@@ -184,6 +184,91 @@
   }
   #notes:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 
+  .notes-display {
+    color: var(--muted);
+    font: inherit;
+    font-size: calc(13px * var(--scale));
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: text;
+    user-select: text;
+    min-height: 1.5em;
+  }
+  .notes-display a {
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .notes-display a:hover { text-decoration: underline; }
+
+  /* ── Links ────────────────────────────────────────────────── */
+  .link-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 6px;
+    border-radius: 5px;
+    font-size: calc(12px * var(--scale));
+    color: var(--accent);
+    transition: background 120ms ease;
+    cursor: pointer;
+  }
+  .link-item:hover { background: var(--hover); }
+
+  .link-label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .link-form {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 0;
+  }
+  .link-form input {
+    width: 100%;
+    border: 1px solid var(--hairline);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: calc(12px * var(--scale));
+    padding: 4px 8px;
+    outline: none;
+    user-select: text;
+  }
+  .link-form input::placeholder { color: var(--faint); }
+  .link-form input:focus-visible { border-color: var(--accent); }
+  .link-form-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+  .link-form-btn {
+    border: 0;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: calc(11px * var(--scale));
+    cursor: default;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .link-form-btn.save {
+    background: var(--accent);
+    color: #14161A;
+  }
+  .link-form-btn.save:hover { opacity: 0.85; }
+  .link-form-btn.cancel {
+    background: transparent;
+    color: var(--muted);
+  }
+  .link-form-btn.cancel:hover { color: var(--text); }
+  .link-form-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   /* ── Attachments ──────────────────────────────────────────── */
   .att-header {
     display: flex;
@@ -307,9 +392,26 @@
         </div>
       </div>
 
-      <div>
+      <div id="notesSection">
         <span class="section-label">Notes</span>
         <textarea id="notes" rows="1"></textarea>
+        <div class="notes-display" id="notesDisplay" hidden></div>
+      </div>
+
+      <div>
+        <div class="att-header">
+          <span class="section-label">Links</span>
+          <button class="att-add" id="addLink">+ Add link</button>
+        </div>
+        <div id="linkForm" hidden class="link-form">
+          <input id="linkLabel" type="text" placeholder="Label (optional)" autocomplete="off" />
+          <input id="linkUrl" type="url" placeholder="URL" autocomplete="off" />
+          <div class="link-form-actions">
+            <button class="link-form-btn cancel" id="linkCancel">Cancel</button>
+            <button class="link-form-btn save" id="linkSave">Save</button>
+          </div>
+        </div>
+        <ul class="att-list" id="linkList"></ul>
       </div>
 
       <div class="att-section">
@@ -335,6 +437,15 @@
 
   const closeIcon = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>';
   const fileIcon = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1H3.5A1.5 1.5 0 0 0 2 2.5v9A1.5 1.5 0 0 0 3.5 13h7a1.5 1.5 0 0 0 1.5-1.5V5L8 1Z"/><path d="M8 1v4h4"/></svg>';
+  const linkIcon = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7.5a3 3 0 0 0 4.24.36l1.5-1.5a3 3 0 0 0-4.24-4.24l-.86.86"/><path d="M8 6.5a3 3 0 0 0-4.24-.36l-1.5 1.5a3 3 0 0 0 4.24 4.24l.86-.86"/></svg>';
+
+  const notesDisplay = document.getElementById('notesDisplay');
+  const linkList = document.getElementById('linkList');
+  const linkForm = document.getElementById('linkForm');
+  const linkLabelInput = document.getElementById('linkLabel');
+  const linkUrlInput = document.getElementById('linkUrl');
+
+  const URL_RE = /(https?:\/\/[^\s<]+|mailto:[^\s<]+|message:\/\/[^\s<]+)/gi;
 
   function scheduleSave() {
     clearTimeout(saveTimer);
@@ -352,16 +463,46 @@
     el.style.height = el.scrollHeight + 'px';
   }
 
+  function linkify(text) {
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escaped.replace(URL_RE, (url) => {
+      const decoded = url.replace(/&amp;/g, '&');
+      return '<a href="#" data-url="' + decoded.replace(/"/g, '&quot;') + '">' + url + '</a>';
+    });
+  }
+
+  function showNotesDisplay() {
+    const text = task.notes || '';
+    if (!text.trim()) {
+      notesDisplay.hidden = true;
+      notesEl.hidden = false;
+      return;
+    }
+    notesDisplay.innerHTML = linkify(text);
+    notesDisplay.hidden = false;
+    notesEl.hidden = true;
+  }
+
+  function showNotesEditor() {
+    notesDisplay.hidden = true;
+    notesEl.hidden = false;
+    notesEl.value = task.notes || '';
+    autoGrow(notesEl);
+    notesEl.focus();
+  }
+
   function loadTask(t) {
-    task = { ...t, attachments: t.attachments ? [...t.attachments] : [] };
+    task = { ...t, attachments: t.attachments ? [...t.attachments] : [], links: t.links ? [...t.links] : [] };
 
     titleEl.value = task.text;
     notesEl.value = task.notes || '';
     autoGrow(notesEl);
+    showNotesDisplay();
 
     doneBtn.classList.toggle('checked', !!task.done);
     priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
 
+    renderLinks();
     renderAttachments();
   }
 
@@ -420,7 +561,20 @@
     autoGrow(notesEl);
     scheduleSave();
   });
-  notesEl.addEventListener('blur', commitSave);
+  notesEl.addEventListener('blur', () => {
+    commitSave();
+    showNotesDisplay();
+  });
+
+  notesDisplay.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-url]');
+    if (link) {
+      e.preventDefault();
+      window.shell.openExternal(link.dataset.url);
+      return;
+    }
+    showNotesEditor();
+  });
 
   // ── Done toggle ──
 
@@ -439,6 +593,89 @@
       priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
       commitSave();
     });
+  });
+
+  // ── Links ──
+
+  function renderLinks() {
+    linkList.innerHTML = '';
+    for (const link of task.links) {
+      const li = document.createElement('li');
+      li.className = 'link-item';
+
+      const icon = document.createElement('span');
+      icon.className = 'att-icon';
+      icon.innerHTML = linkIcon;
+
+      const name = document.createElement('span');
+      name.className = 'link-label';
+      let displayLabel = link.label;
+      if (!displayLabel) {
+        try { displayLabel = new URL(link.url).hostname; } catch (e) { displayLabel = link.url; }
+      }
+      name.textContent = displayLabel;
+      name.title = link.url;
+
+      li.addEventListener('click', () => {
+        window.shell.openExternal(link.url);
+      });
+
+      const rm = document.createElement('button');
+      rm.className = 'att-remove';
+      rm.setAttribute('aria-label', 'Remove link');
+      rm.innerHTML = closeIcon;
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        task.links = task.links.filter((l) => l !== link);
+        commitSave();
+        renderLinks();
+      });
+
+      li.append(icon, name, rm);
+      linkList.appendChild(li);
+    }
+  }
+
+  document.getElementById('addLink').addEventListener('click', () => {
+    linkForm.hidden = false;
+    linkLabelInput.value = '';
+    linkUrlInput.value = '';
+    linkUrlInput.focus();
+  });
+
+  document.getElementById('linkCancel').addEventListener('click', () => {
+    linkForm.hidden = true;
+  });
+
+  document.getElementById('linkSave').addEventListener('click', () => {
+    const url = linkUrlInput.value.trim();
+    if (!url) return;
+    const label = linkLabelInput.value.trim();
+    if (!task.links) task.links = [];
+    task.links.push({ label: label || '', url });
+    commitSave();
+    renderLinks();
+    linkForm.hidden = true;
+  });
+
+  linkUrlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('linkSave').click();
+    }
+    if (e.key === 'Escape') {
+      linkForm.hidden = true;
+    }
+  });
+
+  linkLabelInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      linkUrlInput.focus();
+    }
+    if (e.key === 'Escape') {
+      linkForm.hidden = true;
+    }
   });
 
   // ── Add files ──
@@ -534,8 +771,10 @@
         task.done = updated.done;
         task.priority = updated.priority;
         task.attachments = updated.attachments ? [...updated.attachments] : [];
+        task.links = updated.links ? [...updated.links] : [];
         doneBtn.classList.toggle('checked', !!task.done);
         priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
+        renderLinks();
         renderAttachments();
       }
     } else {
