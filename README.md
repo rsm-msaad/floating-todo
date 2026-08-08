@@ -1,12 +1,12 @@
 # Floating Checklist
 
-A tiny always-on-top to do list for macOS. It sits above your other windows and follows you to every Space and fullscreen app.
+A tiny always-on-top to-do list for macOS. It sits above your other windows and follows you to every Space and fullscreen app.
 
 ## Setup (one time)
 
 1. Install Node.js if you don't have it: https://nodejs.org (grab the LTS build).
-2. Unzip this folder somewhere you'll keep it, like `~/Projects/floating-todo`.
-3. Open the folder in VS Code, then open a terminal (Terminal menu, New Terminal) and run:
+2. Clone or unzip this folder somewhere you'll keep it, like `~/Projects/floating-todo`.
+3. Open the folder in VS Code, then open a terminal and run:
 
 ```bash
 npm install
@@ -20,18 +20,45 @@ npm start
 
 ## Using it
 
-- Type in the box and hit Enter to add a task.
+- Type in the input at the bottom and hit Enter to add a task.
 - Click the circle to check it off. The text strikes through and dims.
-- Hover a row and click the × to delete it.
+- Hover a row and click the x to delete it.
 - "Clear done" wipes all finished tasks at once.
-- Drag the window by its top bar.
-- Chevron collapses it to a slim strip. × quits the app.
+- Drag the window by its top bar. x quits the app.
 
-Tasks and window position are saved automatically, so it comes back exactly as you left it.
+### Priority
+
+Right-click any task row to set a priority (Urgent, Soon, Later) or clear it.
+Prioritized rows show a colored left border and background tint.
+
+### Detail window
+
+Click a task row to open its detail window, where you can:
+
+- Edit the title.
+- Toggle done and set priority with pill buttons.
+- Write freeform notes in an auto-growing text area.
+- Attach files by clicking "+ Add files" or dragging them onto the window.
+  Attachments are stored as paths, not copies. Click one to open it;
+  right-click to reveal it in Finder.
+
+All edits save automatically (debounced 300ms, plus on blur and close).
+Press Escape to close the detail window.
+
+### Edge tucking
+
+Drag the window to the left or right edge of your screen and it tucks into a
+slim tab. Click the tab to restore it.
+
+### Persistence
+
+Tasks are saved to a JSON file in your Electron userData directory (not
+localStorage), written synchronously on every change so nothing is lost on
+quit. Window position is also saved and restored.
 
 ## Notes
 
-- There's no Dock icon on purpose, so it stays out of Cmd+Tab and feels like an overlay. Quit with the × in the top bar.
+- There's no Dock icon on purpose, so it stays out of Cmd+Tab and feels like an overlay. Quit with the x in the top bar.
 - Resize by dragging any edge.
 
 ## Build the app
