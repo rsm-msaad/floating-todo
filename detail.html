@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Task Detail</title>
+<style>
+  :root {
+    --bg: rgba(22, 22, 26, 0.94);
+    --stroke: rgba(255, 255, 255, 0.10);
+    --hairline: rgba(255, 255, 255, 0.07);
+    --text: #ECECEF;
+    --muted: #83838E;
+    --faint: #5E5E68;
+    --accent: #7EE0B0;
+    --urgent: #F0736A;
+    --soon:   #E8A54B;
+    --later:  #7B94C4;
+    --hover: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--text);
+    cursor: default;
+    user-select: none;
+  }
+
+  .panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  header {
+    -webkit-app-region: drag;
+    flex: 0 0 auto;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px 0 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  header .header-title {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+  .icon-btn {
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 6px;
+    background: transparent;
+    color: var(--faint);
+    cursor: default;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+  .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .icon-btn svg { width: 13px; height: 13px; }
+
+  .content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+
+  /* ── Title ────────────────────────────────────────────────── */
+  #title {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 0;
+    outline: none;
+    user-select: text;
+  }
+  #title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+
+  /* ── Row controls ─────────────────────────────────────────── */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Done toggle */
+  .done-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: default;
+    transition: color 120ms ease;
+  }
+  .done-toggle:hover { color: var(--text); }
+  .done-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  .done-box {
+    width: 14px; height: 14px;
+    border: 1.5px solid rgba(255,255,255,0.28);
+    border-radius: 4px;
+    display: grid; place-items: center;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  .done-box svg { width: 8px; height: 8px; color: #14161A; opacity: 0; transform: scale(0.6); transition: opacity 140ms ease, transform 160ms ease; }
+  .done-toggle.checked .done-box { background: var(--accent); border-color: var(--accent); }
+  .done-toggle.checked .done-box svg { opacity: 1; transform: scale(1); }
+
+  /* Priority buttons */
+  .pri-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .pri-btn {
+    padding: 3px 8px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    cursor: default;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  .pri-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+  .pri-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .pri-btn.active.urgent { background: rgba(240,115,106,0.2); border-color: var(--urgent); color: var(--urgent); }
+  .pri-btn.active.soon   { background: rgba(232,165,75,0.2);  border-color: var(--soon);   color: var(--soon); }
+  .pri-btn.active.later  { background: rgba(123,148,196,0.2); border-color: var(--later);  color: var(--later); }
+
+  /* ── Notes ────────────────────────────────────────────────── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  #notes {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 0;
+    resize: none;
+    outline: none;
+    overflow: hidden;
+    user-select: text;
+  }
+  #notes::placeholder { color: var(--faint); }
+  #notes:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+
+  /* ── Attachments ──────────────────────────────────────────── */
+  .att-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .att-header .section-label { flex: 1; }
+
+  .att-add {
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    font: inherit;
+    font-size: 11px;
+    cursor: default;
+    transition: color 120ms ease;
+  }
+  .att-add:hover { color: var(--text); }
+  .att-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  .att-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .att-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 6px;
+    border-radius: 5px;
+    font-size: 12px;
+    color: var(--muted);
+    transition: background 120ms ease;
+  }
+  .att-item:hover { background: var(--hover); }
+  .att-item.missing { opacity: 0.4; }
+
+  .att-icon {
+    flex: 0 0 auto;
+    width: 14px; height: 14px;
+    color: var(--faint);
+  }
+
+  .att-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+  }
+
+  .att-remove {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 4px;
+    background: transparent;
+    color: var(--faint);
+    opacity: 0;
+    cursor: default;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .att-item:hover .att-remove { opacity: 1; }
+  .att-remove:hover { color: #FF8A8A; background: rgba(255,120,120,0.12); }
+  .att-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
+  .att-remove svg { width: 8px; height: 8px; }
+
+  /* ── Drop zone ────────────────────────────────────────────── */
+  .drop-active .panel {
+    border-color: var(--accent);
+  }
+
+  .drop-hint {
+    display: none;
+    text-align: center;
+    font-size: 11px;
+    color: var(--accent);
+    padding: 8px 0;
+  }
+  .drop-active .drop-hint { display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <header>
+      <span class="header-title">Detail</span>
+      <div class="controls">
+        <button class="icon-btn" id="close" title="Close" aria-label="Close">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <input id="title" type="text" autocomplete="off" spellcheck="false" />
+
+      <div class="row">
+        <button class="done-toggle" id="doneBtn" aria-label="Toggle done">
+          <span class="done-box">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.3 4.7 9 10 3.4"/></svg>
+          </span>
+          <span class="done-label">Done</span>
+        </button>
+        <div class="pri-group">
+          <button class="pri-btn urgent" data-pri="urgent">Urgent</button>
+          <button class="pri-btn soon"   data-pri="soon">Soon</button>
+          <button class="pri-btn later"  data-pri="later">Later</button>
+        </div>
+      </div>
+
+      <div>
+        <span class="section-label">Notes</span>
+        <textarea id="notes" placeholder="Notes" rows="1"></textarea>
+      </div>
+
+      <div>
+        <div class="att-header">
+          <span class="section-label">Attachments</span>
+          <button class="att-add" id="addFiles">+ Add files</button>
+        </div>
+        <ul class="att-list" id="attList"></ul>
+        <p class="drop-hint">Drop files here</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let task = null;
+  let saveTimer = null;
+
+  const titleEl = document.getElementById('title');
+  const notesEl = document.getElementById('notes');
+  const doneBtn = document.getElementById('doneBtn');
+  const attList = document.getElementById('attList');
+  const priBtns = document.querySelectorAll('.pri-btn');
+
+  const closeIcon = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>';
+  const fileIcon = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1H3.5A1.5 1.5 0 0 0 2 2.5v9A1.5 1.5 0 0 0 3.5 13h7a1.5 1.5 0 0 0 1.5-1.5V5L8 1Z"/><path d="M8 1v4h4"/></svg>';
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(commitSave, 300);
+  }
+
+  function commitSave() {
+    clearTimeout(saveTimer);
+    if (!task) return;
+    window.shell.updateTask({ ...task });
+  }
+
+  function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  function loadTask(t) {
+    task = { ...t, attachments: t.attachments ? [...t.attachments] : [] };
+
+    titleEl.value = task.text;
+    notesEl.value = task.notes || '';
+    autoGrow(notesEl);
+
+    doneBtn.classList.toggle('checked', !!task.done);
+    priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
+
+    renderAttachments();
+  }
+
+  async function renderAttachments() {
+    attList.innerHTML = '';
+    for (const att of task.attachments) {
+      const exists = await window.shell.fileExists(att.path);
+      const li = document.createElement('li');
+      li.className = 'att-item' + (exists ? '' : ' missing');
+
+      const icon = document.createElement('span');
+      icon.className = 'att-icon';
+      icon.innerHTML = fileIcon;
+
+      const name = document.createElement('span');
+      name.className = 'att-name';
+      name.textContent = att.name;
+      name.title = att.path;
+
+      li.addEventListener('click', () => {
+        if (exists) window.shell.openFile(att.path);
+      });
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (exists) window.shell.revealFile(att.path);
+      });
+
+      const rm = document.createElement('button');
+      rm.className = 'att-remove';
+      rm.setAttribute('aria-label', 'Remove attachment');
+      rm.innerHTML = closeIcon;
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        task.attachments = task.attachments.filter((a) => a.path !== att.path);
+        commitSave();
+        renderAttachments();
+      });
+
+      li.append(icon, name, rm);
+      attList.appendChild(li);
+    }
+  }
+
+  // ── Title ──
+
+  titleEl.addEventListener('input', () => {
+    task.text = titleEl.value;
+    scheduleSave();
+  });
+  titleEl.addEventListener('blur', commitSave);
+
+  // ── Notes ──
+
+  notesEl.addEventListener('input', () => {
+    task.notes = notesEl.value;
+    autoGrow(notesEl);
+    scheduleSave();
+  });
+  notesEl.addEventListener('blur', commitSave);
+
+  // ── Done toggle ──
+
+  doneBtn.addEventListener('click', () => {
+    task.done = !task.done;
+    doneBtn.classList.toggle('checked', task.done);
+    commitSave();
+  });
+
+  // ── Priority ──
+
+  priBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.pri;
+      task.priority = task.priority === p ? undefined : p;
+      priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
+      commitSave();
+    });
+  });
+
+  // ── Add files ──
+
+  document.getElementById('addFiles').addEventListener('click', async () => {
+    const files = await window.shell.pickFiles();
+    if (files.length === 0) return;
+    if (!task.attachments) task.attachments = [];
+    for (const f of files) {
+      if (!task.attachments.some((a) => a.path === f.path)) {
+        task.attachments.push(f);
+      }
+    }
+    commitSave();
+    renderAttachments();
+  });
+
+  // ── Drag and drop ──
+
+  let dragCounter = 0;
+  document.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    document.body.classList.add('drop-active');
+  });
+  document.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      document.body.classList.remove('drop-active');
+    }
+  });
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    document.body.classList.remove('drop-active');
+    if (!task) return;
+    if (!task.attachments) task.attachments = [];
+    for (const file of e.dataTransfer.files) {
+      const filePath = window.shell.getPathForFile(file);
+      if (filePath && !task.attachments.some((a) => a.path === filePath)) {
+        task.attachments.push({ name: file.name, path: filePath });
+      }
+    }
+    commitSave();
+    renderAttachments();
+  });
+
+  // ── Close ──
+
+  document.getElementById('close').addEventListener('click', () => {
+    commitSave();
+    window.shell.closeDetail();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      commitSave();
+      window.shell.closeDetail();
+    }
+  });
+
+  // ── IPC listeners ──
+
+  window.shell.onShowTask((t) => {
+    commitSave();
+    loadTask(t);
+  });
+
+  window.shell.onTasksChanged((newItems) => {
+    if (!task) return;
+    const updated = newItems.find((i) => i.id === task.id);
+    if (updated) {
+      // Only reload if the data actually changed from outside
+      const focused = document.activeElement;
+      if (focused !== titleEl && focused !== notesEl) {
+        loadTask(updated);
+      } else {
+        // Update non-editing fields
+        task.done = updated.done;
+        task.priority = updated.priority;
+        task.attachments = updated.attachments ? [...updated.attachments] : [];
+        doneBtn.classList.toggle('checked', !!task.done);
+        priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
+        renderAttachments();
+      }
+    } else {
+      // Task was deleted
+      window.shell.closeDetail();
+    }
+  });
+</script>
+</body>
+</html>
