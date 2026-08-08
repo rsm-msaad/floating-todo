@@ -110,6 +110,7 @@
   li {
     display: flex;
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 9px;
     padding: 6px 4px 6px 6px;
     border-left: 2px solid transparent;
@@ -152,6 +153,7 @@
     font-size: 13px;
     line-height: 1.35;
     word-break: break-word;
+    cursor: default;
     transition: color 220ms ease;
   }
   .label::after {
@@ -164,6 +166,45 @@
   }
   li.done .label { color: var(--faint); }
   li.done .label::after { width: 100%; }
+
+  .has-notes-marker {
+    display: inline-block;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--faint);
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+
+  .notes-wrap {
+    flex-basis: 100%;
+    margin-left: 24px;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 180ms ease, opacity 180ms ease;
+  }
+  .notes-wrap.open {
+    opacity: 1;
+  }
+
+  .notes-wrap textarea {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 4px 0 2px;
+    resize: none;
+    outline: none;
+    overflow: hidden;
+    user-select: text;
+  }
+  .notes-wrap textarea::placeholder { color: var(--faint); }
+  .notes-wrap textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
   .del {
     flex: 0 0 auto;
@@ -311,7 +352,71 @@
 
       const label = document.createElement('span');
       label.className = 'label';
+      label.setAttribute('role', 'button');
+      label.setAttribute('tabindex', '0');
+      label.setAttribute('aria-expanded', 'false');
       label.textContent = item.text;
+      if (item.notes) {
+        const marker = document.createElement('span');
+        marker.className = 'has-notes-marker';
+        label.appendChild(marker);
+      }
+
+      const notesWrap = document.createElement('div');
+      notesWrap.className = 'notes-wrap';
+      const textarea = document.createElement('textarea');
+      textarea.placeholder = 'Notes';
+      textarea.rows = 1;
+      textarea.value = item.notes || '';
+      notesWrap.appendChild(textarea);
+
+      function autoGrow() {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+      }
+
+      let saveTimer = null;
+      textarea.addEventListener('input', () => {
+        item.notes = textarea.value;
+        autoGrow();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, 300);
+      });
+      textarea.addEventListener('blur', () => {
+        clearTimeout(saveTimer);
+        item.notes = textarea.value;
+        save();
+      });
+      textarea.addEventListener('click', (e) => e.stopPropagation());
+      textarea.addEventListener('contextmenu', (e) => e.stopPropagation());
+
+      function toggleNotes() {
+        const opening = !notesWrap.classList.contains('open');
+        if (opening) {
+          notesWrap.classList.add('open');
+          autoGrow();
+          notesWrap.style.maxHeight = Math.max(textarea.scrollHeight + 8, 30) + 'px';
+          label.setAttribute('aria-expanded', 'true');
+          textarea.addEventListener('input', () => {
+            notesWrap.style.maxHeight = Math.max(textarea.scrollHeight + 8, 30) + 'px';
+          });
+        } else {
+          notesWrap.classList.remove('open');
+          notesWrap.style.maxHeight = '0';
+          label.setAttribute('aria-expanded', 'false');
+        }
+      }
+
+      label.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNotes();
+      });
+      label.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleNotes();
+        }
+      });
 
       if (item.priority) {
         li.classList.add('pri-' + item.priority);
@@ -332,7 +437,7 @@
         render();
       });
 
-      li.append(box, label, del);
+      li.append(box, label, del, notesWrap);
       list.appendChild(li);
     });
 
