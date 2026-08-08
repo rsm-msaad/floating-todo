@@ -176,6 +176,14 @@
     vertical-align: middle;
   }
 
+  .marker-text {
+    font-size: calc(10px * var(--scale));
+    font-variant-numeric: tabular-nums;
+    color: var(--faint);
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+
   .del {
     flex: 0 0 auto;
     width: 18px; height: 18px;
@@ -333,6 +341,14 @@
         const m = document.createElement('span');
         m.className = 'marker';
         m.title = attCount + ' attachment' + (attCount > 1 ? 's' : '');
+        label.appendChild(m);
+      }
+      if (item.subtasks && item.subtasks.length > 0) {
+        const done = item.subtasks.filter((s) => s.done).length;
+        const m = document.createElement('span');
+        m.className = 'marker-text';
+        m.textContent = done + '/' + item.subtasks.length;
+        m.title = 'Subtasks';
         label.appendChild(m);
       }
       li.addEventListener('contextmenu', (e) => {
