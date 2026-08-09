@@ -327,6 +327,18 @@ ipcMain.on('tasks:delete', (event, id) => {
   broadcastTasks();
 });
 
+ipcMain.on('tasks:reorder', (event, orderedIds) => {
+  const map = new Map(items.map((i) => [i.id, i]));
+  const reordered = orderedIds.map((id) => map.get(id)).filter(Boolean);
+  // append any items not in the list (safety net)
+  for (const i of items) {
+    if (!orderedIds.includes(i.id)) reordered.push(i);
+  }
+  items = reordered;
+  saveTasks();
+  broadcastTasks();
+});
+
 ipcMain.on('tasks:clear-done', () => {
   items = items.filter((i) => !i.done);
   saveTasks();

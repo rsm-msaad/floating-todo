@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('shell', {
   updateTask: (item) => ipcRenderer.send('tasks:update', item),
   deleteTask: (id) => ipcRenderer.send('tasks:delete', id),
   clearDone: () => ipcRenderer.send('tasks:clear-done'),
+  reorderTasks: (orderedIds) => ipcRenderer.send('tasks:reorder', orderedIds),
   migrateTasks: (items) => ipcRenderer.send('tasks:migrate', items),
   onTasksChanged: (callback) => ipcRenderer.on('tasks-changed', (_event, data) => callback(data)),
 

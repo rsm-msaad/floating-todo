@@ -258,6 +258,11 @@
   body.tucked.left .tab svg { transform: rotate(-90deg); }
   body.tucked.right .tab svg { transform: rotate(90deg); }
 
+  /* ── Drag-and-drop ──────────────────────────────────────── */
+  li.dragging { opacity: 0.4; }
+  li.drag-over-top { box-shadow: 0 -1px 0 0 var(--accent), inset 0 1px 0 0 var(--accent); }
+  li.drag-over-bottom { box-shadow: 0 1px 0 0 var(--accent), inset 0 -1px 0 0 var(--accent); }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -369,11 +374,71 @@
         window.shell.deleteTask(item.id);
       });
 
+      // ── Drag-and-drop ──────────────────────────────────────
+      li.draggable = true;
+      li.dataset.id = item.id;
+
+      li.addEventListener('dragstart', (e) => {
+        // Don't drag from checkbox, delete button, or composer
+        const tag = e.target.closest('.box, .del');
+        if (tag) { e.preventDefault(); return; }
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(item.id));
+        requestAnimationFrame(() => li.classList.add('dragging'));
+      });
+
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        clearDropIndicators();
+      });
+
+      li.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearDropIndicators();
+        const rect = li.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          li.classList.add('drag-over-top');
+        } else {
+          li.classList.add('drag-over-bottom');
+        }
+      });
+
+      li.addEventListener('dragleave', () => {
+        li.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+
+      li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        clearDropIndicators();
+        const draggedId = parseFloat(e.dataTransfer.getData('text/plain'));
+        const targetId = item.id;
+        if (draggedId === targetId) return;
+
+        const fromIdx = items.findIndex((i) => i.id === draggedId);
+        if (fromIdx === -1) return;
+        const [moved] = items.splice(fromIdx, 1);
+
+        let toIdx = items.findIndex((i) => i.id === targetId);
+        const rect = li.getBoundingClientRect();
+        if (e.clientY >= rect.top + rect.height / 2) toIdx += 1;
+        items.splice(toIdx, 0, moved);
+
+        window.shell.reorderTasks(items.map((i) => i.id));
+      });
+
       li.append(box, label, del);
       list.appendChild(li);
     });
 
     refreshMeta();
+  }
+
+  function clearDropIndicators() {
+    list.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach((el) => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
   }
 
   function refreshMeta() {
@@ -464,6 +529,10 @@
     render();
     input.focus();
   }
+
+  // Prevent drag from header and composer
+  document.querySelector('header').addEventListener('dragstart', (e) => e.preventDefault());
+  document.querySelector('.composer').addEventListener('dragstart', (e) => e.preventDefault());
 
   init();
 </script>
