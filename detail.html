@@ -418,6 +418,122 @@
   }
   .drop-active .drop-hint { display: block; }
 
+  /* ── Subtask children & per-subtask attachments ─────────── */
+  .st-row-child {
+    margin-left: 20px;
+  }
+  .st-row-child .st-text {
+    font-size: calc(12px * var(--scale));
+    color: var(--muted);
+  }
+  .st-row-child.done .st-text { color: var(--faint); }
+
+  .st-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  .st-child-count {
+    font-size: calc(10px * var(--scale));
+    font-variant-numeric: tabular-nums;
+    color: var(--faint);
+    cursor: default;
+    transition: color 120ms ease;
+  }
+  .st-child-count:hover { color: var(--text); }
+
+  .st-clip {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: calc(10px * var(--scale));
+    font-variant-numeric: tabular-nums;
+    color: var(--faint);
+    cursor: default;
+    transition: color 120ms ease;
+  }
+  .st-clip:hover { color: var(--text); }
+  .st-clip svg { width: 10px; height: 10px; }
+
+  .st-add-child {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 4px;
+    background: transparent;
+    color: var(--faint);
+    opacity: 0;
+    cursor: default;
+    font-size: 13px;
+    line-height: 1;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .st-row:hover > .st-add-child { opacity: 1; }
+  .st-add-child:hover { color: var(--text); background: var(--hover); }
+  .st-add-child:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
+
+  .st-child-input {
+    margin-left: 20px;
+    width: calc(100% - 20px);
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: calc(12px * var(--scale));
+    padding: 4px 0;
+    outline: none;
+    user-select: text;
+  }
+  .st-child-input::placeholder { color: var(--faint); }
+  .st-child-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  .st-row.drop-target {
+    border: 1px dashed var(--accent);
+  }
+
+  .st-att-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .st-att-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px 2px 22px;
+    border-radius: 4px;
+    font-size: calc(11px * var(--scale));
+    color: var(--muted);
+    transition: background 120ms ease;
+  }
+  .st-att-item.child-att { padding-left: 42px; }
+  .st-att-item:hover { background: var(--hover); }
+  .st-att-item.missing { opacity: 0.4; }
+  .st-att-item .att-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .st-att-item .att-remove {
+    flex: 0 0 auto;
+    width: 14px; height: 14px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 3px;
+    background: transparent;
+    color: var(--faint);
+    opacity: 0;
+    cursor: default;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .st-att-item:hover .att-remove { opacity: 1; }
+  .st-att-item .att-remove:hover { color: #FF8A8A; background: rgba(255,120,120,0.12); }
+  .st-att-item .att-remove svg { width: 7px; height: 7px; }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -549,8 +665,22 @@
     notesEl.focus();
   }
 
+  const expandedChildren = new Set();
+  const expandedClips = new Set();
+  let addingChildTo = null;
+
+  const clipSvg = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.2 6.4 6.5 10.1a2.1 2.1 0 0 1-3 0 2.1 2.1 0 0 1 0-3l4.6-4.6a1.4 1.4 0 0 1 2 0 1.4 1.4 0 0 1 0 2L5.5 9.1a.7.7 0 0 1-1 0 .7.7 0 0 1 0-1l3.7-3.7"/></svg>';
+
   function loadTask(t) {
-    task = { ...t, attachments: t.attachments ? [...t.attachments] : [], subtasks: t.subtasks ? t.subtasks.map((s) => ({ ...s })) : [] };
+    task = {
+      ...t,
+      attachments: t.attachments ? [...t.attachments] : [],
+      subtasks: t.subtasks ? t.subtasks.map((s) => ({
+        ...s,
+        children: s.children ? s.children.map((c) => ({ ...c })) : [],
+        attachments: s.attachments ? [...s.attachments] : []
+      })) : []
+    };
 
     titleEl.value = task.text;
     notesEl.value = task.notes || '';
@@ -655,6 +785,97 @@
 
   // ── Subtasks ──
 
+  function setupRowDrop(rowEl, target) {
+    rowEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      rowEl.classList.add('drop-target');
+    });
+    rowEl.addEventListener('dragleave', (e) => {
+      e.stopPropagation();
+      rowEl.classList.remove('drop-target');
+    });
+    rowEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      rowEl.classList.remove('drop-target');
+      if (!target.attachments) target.attachments = [];
+      for (const file of e.dataTransfer.files) {
+        const filePath = window.shell.getPathForFile(file);
+        if (filePath && !target.attachments.some((a) => a.path === filePath)) {
+          target.attachments.push({ name: file.name, path: filePath });
+        }
+      }
+      commitSave();
+      renderSubtasks();
+    });
+  }
+
+  function renderSubtaskAttachments(container, target, isChild) {
+    if (!target.attachments || target.attachments.length === 0) return;
+    const ul = document.createElement('ul');
+    ul.className = 'st-att-list';
+    target.attachments.forEach((att) => {
+      const li = document.createElement('li');
+      li.className = 'st-att-item' + (isChild ? ' child-att' : '');
+      // Check existence async and update
+      window.shell.fileExists(att.path).then((exists) => {
+        if (!exists) li.classList.add('missing');
+      });
+
+      const name = document.createElement('span');
+      name.className = 'att-name';
+      name.textContent = att.name;
+      name.title = att.path;
+
+      li.addEventListener('click', () => {
+        window.shell.openFile(att.path);
+      });
+
+      const rm = document.createElement('button');
+      rm.className = 'att-remove';
+      rm.setAttribute('aria-label', 'Remove attachment');
+      rm.innerHTML = closeIcon;
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        target.attachments = target.attachments.filter((a) => a.path !== att.path);
+        commitSave();
+        renderSubtasks();
+      });
+
+      li.append(name, rm);
+      ul.appendChild(li);
+    });
+    container.appendChild(ul);
+  }
+
+  function makeEditableText(row, sub, className) {
+    const text = document.createElement('span');
+    text.className = className || 'st-text';
+    text.textContent = sub.text;
+    text.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.className = 'st-edit';
+      input.value = sub.text;
+      row.replaceChild(input, text);
+      input.focus();
+      const finish = () => {
+        const v = input.value.trim();
+        if (v) sub.text = v;
+        text.textContent = sub.text;
+        row.replaceChild(text, input);
+        commitSave();
+      };
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = sub.text; input.blur(); }
+      });
+    });
+    return text;
+  }
+
   function renderSubtasks() {
     stList.innerHTML = '';
     const total = task.subtasks.length;
@@ -666,6 +887,9 @@
     }
 
     task.subtasks.forEach((sub) => {
+      if (!sub.children) sub.children = [];
+      if (!sub.attachments) sub.attachments = [];
+
       const row = document.createElement('li');
       row.className = 'st-row' + (sub.done ? ' done' : '');
 
@@ -679,27 +903,51 @@
         renderSubtasks();
       });
 
-      const text = document.createElement('span');
-      text.className = 'st-text';
-      text.textContent = sub.text;
-      text.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.className = 'st-edit';
-        input.value = sub.text;
-        row.replaceChild(input, text);
-        input.focus();
-        const finish = () => {
-          const v = input.value.trim();
-          if (v) sub.text = v;
-          text.textContent = sub.text;
-          row.replaceChild(text, input);
-          commitSave();
-        };
-        input.addEventListener('blur', finish);
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-          if (e.key === 'Escape') { input.value = sub.text; input.blur(); }
+      const text = makeEditableText(row, sub);
+
+      // Meta: child count + clip
+      const meta = document.createElement('span');
+      meta.className = 'st-meta';
+
+      if (sub.attachments.length > 0) {
+        const clip = document.createElement('span');
+        clip.className = 'st-clip';
+        clip.innerHTML = clipSvg + ' ' + sub.attachments.length;
+        clip.title = sub.attachments.length + ' attachment' + (sub.attachments.length > 1 ? 's' : '');
+        clip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (expandedClips.has(sub.id)) expandedClips.delete(sub.id);
+          else expandedClips.add(sub.id);
+          renderSubtasks();
         });
+        meta.appendChild(clip);
+      }
+
+      if (sub.children.length > 0) {
+        const childDone = sub.children.filter((c) => c.done).length;
+        const cnt = document.createElement('span');
+        cnt.className = 'st-child-count';
+        cnt.textContent = childDone + '/' + sub.children.length;
+        cnt.title = 'Toggle children';
+        cnt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (expandedChildren.has(sub.id)) expandedChildren.delete(sub.id);
+          else expandedChildren.add(sub.id);
+          renderSubtasks();
+        });
+        meta.appendChild(cnt);
+      }
+
+      // Add-child button (top-level only)
+      const addBtn = document.createElement('button');
+      addBtn.className = 'st-add-child';
+      addBtn.textContent = '+';
+      addBtn.setAttribute('aria-label', 'Add child subtask');
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addingChildTo = sub.id;
+        expandedChildren.add(sub.id);
+        renderSubtasks();
       });
 
       const del = document.createElement('button');
@@ -712,8 +960,102 @@
         renderSubtasks();
       });
 
-      row.append(box, text, del);
+      setupRowDrop(row, sub);
+
+      row.append(box, text, meta, addBtn, del);
       stList.appendChild(row);
+
+      // Attachment list for this subtask
+      if (expandedClips.has(sub.id)) {
+        renderSubtaskAttachments(stList, sub, false);
+      }
+
+      // Children
+      if (expandedChildren.has(sub.id)) {
+        sub.children.forEach((child) => {
+          if (!child.attachments) child.attachments = [];
+
+          const crow = document.createElement('li');
+          crow.className = 'st-row st-row-child' + (child.done ? ' done' : '');
+
+          const cbox = document.createElement('button');
+          cbox.className = 'st-box';
+          cbox.innerHTML = checkSvg;
+          cbox.setAttribute('aria-label', child.done ? 'Mark as not done' : 'Mark as done');
+          cbox.addEventListener('click', () => {
+            child.done = !child.done;
+            commitSave();
+            renderSubtasks();
+          });
+
+          const ctext = makeEditableText(crow, child);
+
+          const cmeta = document.createElement('span');
+          cmeta.className = 'st-meta';
+
+          if (child.attachments.length > 0) {
+            const cclip = document.createElement('span');
+            cclip.className = 'st-clip';
+            cclip.innerHTML = clipSvg + ' ' + child.attachments.length;
+            cclip.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (expandedClips.has(child.id)) expandedClips.delete(child.id);
+              else expandedClips.add(child.id);
+              renderSubtasks();
+            });
+            cmeta.appendChild(cclip);
+          }
+
+          const cdel = document.createElement('button');
+          cdel.className = 'st-del';
+          cdel.setAttribute('aria-label', 'Delete subtask');
+          cdel.innerHTML = closeIcon;
+          cdel.addEventListener('click', () => {
+            sub.children = sub.children.filter((c) => c.id !== child.id);
+            commitSave();
+            renderSubtasks();
+          });
+
+          setupRowDrop(crow, child);
+
+          crow.append(cbox, ctext, cmeta, cdel);
+          stList.appendChild(crow);
+
+          if (expandedClips.has(child.id)) {
+            renderSubtaskAttachments(stList, child, true);
+          }
+        });
+
+        // Inline input for adding children
+        if (addingChildTo === sub.id) {
+          const inp = document.createElement('input');
+          inp.className = 'st-child-input';
+          inp.type = 'text';
+          inp.placeholder = 'Add a subtask';
+          inp.autocomplete = 'off';
+          inp.spellcheck = false;
+          stList.appendChild(inp);
+          requestAnimationFrame(() => inp.focus());
+          inp.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              const v = inp.value.trim();
+              if (!v) return;
+              sub.children.push({ id: Date.now() + Math.random(), text: v, done: false });
+              inp.value = '';
+              commitSave();
+              renderSubtasks();
+            }
+            if (e.key === 'Escape') {
+              addingChildTo = null;
+              renderSubtasks();
+            }
+          });
+          inp.addEventListener('blur', () => {
+            addingChildTo = null;
+            renderSubtasks();
+          });
+        }
+      }
     });
   }
 
@@ -822,7 +1164,11 @@
         task.done = updated.done;
         task.priority = updated.priority;
         task.attachments = updated.attachments ? [...updated.attachments] : [];
-        task.subtasks = updated.subtasks ? updated.subtasks.map((s) => ({ ...s })) : [];
+        task.subtasks = updated.subtasks ? updated.subtasks.map((s) => ({
+          ...s,
+          children: s.children ? s.children.map((c) => ({ ...c })) : [],
+          attachments: s.attachments ? [...s.attachments] : []
+        })) : [];
         doneBtn.classList.toggle('checked', !!task.done);
         priBtns.forEach((b) => b.classList.toggle('active', task.priority === b.dataset.pri));
         renderSubtasks();
