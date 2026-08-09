@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('shell', {
   openAttachment: (taskId, fileName) => ipcRenderer.send('att:open', taskId, fileName),
   revealAttachment: (taskId, fileName) => ipcRenderer.send('att:reveal', taskId, fileName),
   revealAttFolder: () => ipcRenderer.send('att:reveal-folder'),
+  quickLook: (taskId, fileName) => ipcRenderer.send('ql:preview', taskId, fileName),
+  dismissQuickLook: () => ipcRenderer.send('ql:dismiss'),
   showHeaderMenu: () => ipcRenderer.send('show-header-menu'),
   openFile: (filePath) => ipcRenderer.send('open-file', filePath),
   revealFile: (filePath) => ipcRenderer.send('reveal-file', filePath),

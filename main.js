@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+let qlProcess = null;
 
 let win = null;
 let detailWin = null;
@@ -518,6 +521,23 @@ ipcMain.on('att:reveal-folder', () => {
   const dir = attachmentsBaseDir();
   ensureDir(dir);
   shell.openPath(dir);
+});
+
+// ── Quick Look ────────────────────────────────────────────
+
+ipcMain.on('ql:preview', (event, taskId, fileName) => {
+  try {
+    if (qlProcess) { try { qlProcess.kill(); } catch (err) {} qlProcess = null; }
+    const { path: p, exists } = resolveAttachment(taskId, fileName);
+    if (!exists) return;
+    qlProcess = spawn('qlmanage', ['-p', p], { stdio: 'ignore', detached: true });
+    qlProcess.unref();
+    qlProcess.on('exit', () => { qlProcess = null; });
+  } catch (err) {}
+});
+
+ipcMain.on('ql:dismiss', () => {
+  try { if (qlProcess) { qlProcess.kill(); qlProcess = null; } } catch (err) {}
 });
 
 ipcMain.on('open-file', (event, filePath) => {
