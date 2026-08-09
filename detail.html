@@ -73,6 +73,8 @@
   .icon-btn:hover { background: var(--hover); color: var(--text); }
   .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
   .icon-btn svg { width: 13px; height: 13px; }
+  .icon-btn.text-btn { font-size: 11px; font-weight: 600; font-family: inherit; }
+  .icon-btn:disabled { opacity: 0.3; pointer-events: none; }
 
   .content {
     flex: 1 1 auto;
@@ -366,7 +368,7 @@
     transition: background 120ms ease;
   }
   .att-item:hover { background: var(--hover); }
-  .att-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 5px; }
+  .att-item:focus { background: rgba(126,224,176,0.08); outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 5px; }
   .att-item.missing { opacity: 0.4; }
 
   .att-icon {
@@ -512,7 +514,7 @@
   }
   .st-att-item.child-att { padding-left: 42px; }
   .st-att-item:hover { background: var(--hover); }
-  .st-att-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 4px; }
+  .st-att-item:focus { background: rgba(126,224,176,0.08); outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 4px; }
   .st-att-item.missing { opacity: 0.4; }
   .st-att-item .att-name {
     flex: 1 1 auto;
@@ -546,6 +548,8 @@
     <header>
       <span class="header-title">Detail</span>
       <div class="controls">
+        <button class="icon-btn text-btn" id="scaleDown" title="Small" aria-label="Decrease text size">A−</button>
+        <button class="icon-btn text-btn" id="scaleUp" title="Default" aria-label="Increase text size">A+</button>
         <button class="icon-btn" id="close" title="Close" aria-label="Close">
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg>
         </button>
@@ -1235,9 +1239,31 @@
 
   // ── Settings ──
 
+  const SCALES = [0.9, 1, 1.15, 1.3];
+  const SCALE_LABELS = ['Small', 'Default', 'Large', 'Extra large'];
+  let currentScale = 1;
+  const scaleDownBtn = document.getElementById('scaleDown');
+  const scaleUpBtn = document.getElementById('scaleUp');
+
   function applyScale(s) {
+    currentScale = s;
     document.documentElement.style.setProperty('--scale', s);
+    const idx = SCALES.indexOf(s);
+    scaleDownBtn.disabled = idx <= 0;
+    scaleUpBtn.disabled = idx >= SCALES.length - 1;
+    scaleDownBtn.title = idx > 0 ? SCALE_LABELS[idx - 1] : SCALE_LABELS[0];
+    scaleUpBtn.title = idx < SCALES.length - 1 ? SCALE_LABELS[idx + 1] : SCALE_LABELS[SCALES.length - 1];
   }
+
+  scaleDownBtn.addEventListener('click', () => {
+    const idx = SCALES.indexOf(currentScale);
+    if (idx > 0) window.shell.setSettings({ fontScale: SCALES[idx - 1] });
+  });
+
+  scaleUpBtn.addEventListener('click', () => {
+    const idx = SCALES.indexOf(currentScale);
+    if (idx < SCALES.length - 1) window.shell.setSettings({ fontScale: SCALES[idx + 1] });
+  });
 
   window.shell.loadSettings().then((s) => {
     applyScale(s.fontScale);

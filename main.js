@@ -529,14 +529,24 @@ ipcMain.on('ql:preview', (event, taskId, fileName) => {
   try {
     if (qlProcess) { try { qlProcess.kill(); } catch (err) {} qlProcess = null; }
     const { path: p, exists } = resolveAttachment(taskId, fileName);
+    console.log('[QuickLook] path:', p, 'exists:', exists);
     if (!exists) return;
-    qlProcess = spawn('qlmanage', ['-p', p], { stdio: 'ignore', detached: true });
-    qlProcess.unref();
-    qlProcess.on('exit', () => { qlProcess = null; });
-  } catch (err) {}
+    qlProcess = spawn('qlmanage', ['-p', p], { stdio: 'ignore' });
+    qlProcess.on('exit', (code) => {
+      console.log('[QuickLook] qlmanage exited with code:', code);
+      qlProcess = null;
+    });
+    qlProcess.on('error', (err) => {
+      console.log('[QuickLook] spawn error:', err.message);
+      qlProcess = null;
+    });
+  } catch (err) {
+    console.log('[QuickLook] error:', err.message);
+  }
 });
 
 ipcMain.on('ql:dismiss', () => {
+  console.log('[QuickLook] dismiss, process:', !!qlProcess);
   try { if (qlProcess) { qlProcess.kill(); qlProcess = null; } } catch (err) {}
 });
 
