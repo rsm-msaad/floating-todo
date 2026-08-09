@@ -18,6 +18,94 @@ const TUCK_EDGE_PX = 28;
 const TAB_W = 20;
 const TAB_H = 88;
 
+// ── Attachment storage helpers ────────────────────────────
+
+function attachmentsBaseDir() {
+  return path.join(app.getPath('userData'), 'attachments');
+}
+
+function taskAttDir(taskId) {
+  return path.join(attachmentsBaseDir(), String(taskId));
+}
+
+function ensureDir(dir) {
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (err) {}
+}
+
+function uniqueFileName(dir, name) {
+  let candidate = name;
+  let counter = 1;
+  const ext = path.extname(name);
+  const base = path.basename(name, ext);
+  while (fs.existsSync(path.join(dir, candidate))) {
+    counter++;
+    candidate = base + '-' + counter + ext;
+  }
+  return candidate;
+}
+
+function copyFileToStore(taskId, sourcePath) {
+  const dir = taskAttDir(taskId);
+  ensureDir(dir);
+  const originalName = path.basename(sourcePath);
+  const fileName = uniqueFileName(dir, originalName);
+  fs.copyFileSync(sourcePath, path.join(dir, fileName));
+  return { name: originalName, file: fileName };
+}
+
+function removeStoredFile(taskId, fileName) {
+  try { fs.unlinkSync(path.join(taskAttDir(taskId), fileName)); } catch (err) {}
+}
+
+function removeTaskAttDir(taskId) {
+  try { fs.rmSync(taskAttDir(taskId), { recursive: true, force: true }); } catch (err) {}
+}
+
+function resolveAttachment(taskId, fileName) {
+  const p = path.join(taskAttDir(taskId), fileName);
+  try { return { path: p, exists: fs.existsSync(p) }; } catch (err) { return { path: p, exists: false }; }
+}
+
+function migrateAttArray(attArray, taskId) {
+  let changed = false;
+  for (const att of attArray) {
+    if (att.path && !att.file) {
+      try {
+        if (fs.existsSync(att.path)) {
+          const result = copyFileToStore(taskId, att.path);
+          att.name = result.name;
+          att.file = result.file;
+        } else {
+          att.file = '';
+        }
+      } catch (err) {
+        att.file = '';
+      }
+      delete att.path;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function migrateAllAttachments() {
+  let changed = false;
+  for (const item of items) {
+    if (item.attachments) changed = migrateAttArray(item.attachments, item.id) || changed;
+    if (item.subtasks) {
+      for (const sub of item.subtasks) {
+        if (sub.attachments) changed = migrateAttArray(sub.attachments, item.id) || changed;
+        if (sub.children) {
+          for (const child of sub.children) {
+            if (child.attachments) changed = migrateAttArray(child.attachments, item.id) || changed;
+          }
+        }
+      }
+    }
+  }
+  if (changed) saveTasks();
+}
+
 function settingsFile() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
@@ -284,6 +372,7 @@ app.whenReady().then(() => {
   }
   loadSettings();
   loadTasks();
+  migrateAllAttachments();
   createWindow();
 
   app.on('activate', () => {
@@ -322,6 +411,7 @@ ipcMain.on('tasks:update', (event, updated) => {
 });
 
 ipcMain.on('tasks:delete', (event, id) => {
+  removeTaskAttDir(id);
   items = items.filter((i) => i.id !== id);
   saveTasks();
   broadcastTasks();
@@ -340,6 +430,8 @@ ipcMain.on('tasks:reorder', (event, orderedIds) => {
 });
 
 ipcMain.on('tasks:clear-done', () => {
+  const doneItems = items.filter((i) => i.done);
+  for (const d of doneItems) removeTaskAttDir(d.id);
   items = items.filter((i) => !i.done);
   saveTasks();
   broadcastTasks();
@@ -360,6 +452,7 @@ ipcMain.on('close-detail', () => {
 ipcMain.on('show-task-menu', (event, id, priority) => {
   const send = (action) => {
     if (action === 'delete') {
+      removeTaskAttDir(id);
       items = items.filter((i) => i.id !== id);
     } else {
       const item = items.find((i) => i.id === id);
@@ -395,6 +488,38 @@ ipcMain.handle('pick-files', async () => {
   return result.filePaths.map((p) => ({ name: path.basename(p), path: p }));
 });
 
+ipcMain.handle('att:copy', (event, taskId, sourcePath) => {
+  try {
+    return copyFileToStore(taskId, sourcePath);
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.on('att:remove', (event, taskId, fileName) => {
+  removeStoredFile(taskId, fileName);
+});
+
+ipcMain.handle('att:resolve', (event, taskId, fileName) => {
+  return resolveAttachment(taskId, fileName);
+});
+
+ipcMain.on('att:open', (event, taskId, fileName) => {
+  const { path: p, exists } = resolveAttachment(taskId, fileName);
+  if (exists) shell.openPath(p);
+});
+
+ipcMain.on('att:reveal', (event, taskId, fileName) => {
+  const { path: p, exists } = resolveAttachment(taskId, fileName);
+  if (exists) shell.showItemInFolder(p);
+});
+
+ipcMain.on('att:reveal-folder', () => {
+  const dir = attachmentsBaseDir();
+  ensureDir(dir);
+  shell.openPath(dir);
+});
+
 ipcMain.on('open-file', (event, filePath) => {
   shell.openPath(filePath);
 });
@@ -405,6 +530,20 @@ ipcMain.on('reveal-file', (event, filePath) => {
 
 ipcMain.handle('file-exists', (event, filePath) => {
   return fs.existsSync(filePath);
+});
+
+// ── Header context menu ──────────────────────────────────
+
+ipcMain.on('show-header-menu', (event) => {
+  const menu = Menu.buildFromTemplate([
+    { label: 'Reveal attachments folder', click: () => {
+      const dir = attachmentsBaseDir();
+      ensureDir(dir);
+      shell.openPath(dir);
+    }}
+  ]);
+  const w = BrowserWindow.fromWebContents(event.sender);
+  menu.popup({ window: w });
 });
 
 ipcMain.handle('open-external', async (event, url) => {

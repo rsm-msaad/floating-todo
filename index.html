@@ -534,6 +534,12 @@
   document.querySelector('header').addEventListener('dragstart', (e) => e.preventDefault());
   document.querySelector('.composer').addEventListener('dragstart', (e) => e.preventDefault());
 
+  // Header right-click menu
+  document.querySelector('header').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    window.shell.showHeaderMenu();
+  });
+
   init();
 </script>
 </body>

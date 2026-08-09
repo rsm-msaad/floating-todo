@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld('shell', {
   onShowTask: (callback) => ipcRenderer.on('show-task', (_event, task) => callback(task)),
 
   pickFiles: () => ipcRenderer.invoke('pick-files'),
+  copyFile: (taskId, sourcePath) => ipcRenderer.invoke('att:copy', taskId, sourcePath),
+  removeFile: (taskId, fileName) => ipcRenderer.send('att:remove', taskId, fileName),
+  resolveAttachment: (taskId, fileName) => ipcRenderer.invoke('att:resolve', taskId, fileName),
+  openAttachment: (taskId, fileName) => ipcRenderer.send('att:open', taskId, fileName),
+  revealAttachment: (taskId, fileName) => ipcRenderer.send('att:reveal', taskId, fileName),
+  revealAttFolder: () => ipcRenderer.send('att:reveal-folder'),
+  showHeaderMenu: () => ipcRenderer.send('show-header-menu'),
   openFile: (filePath) => ipcRenderer.send('open-file', filePath),
   revealFile: (filePath) => ipcRenderer.send('reveal-file', filePath),
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),

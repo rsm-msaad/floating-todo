@@ -697,8 +697,12 @@
   async function renderAttachments() {
     attList.innerHTML = '';
     for (const att of task.attachments) {
-      const exists = await window.shell.fileExists(att.path);
       const li = document.createElement('li');
+      let exists = false;
+      if (att.file) {
+        const info = await window.shell.resolveAttachment(task.id, att.file);
+        exists = info.exists;
+      }
       li.className = 'att-item' + (exists ? '' : ' missing');
 
       const icon = document.createElement('span');
@@ -708,14 +712,14 @@
       const name = document.createElement('span');
       name.className = 'att-name';
       name.textContent = att.name;
-      name.title = att.path;
+      name.title = att.file || '';
 
       li.addEventListener('click', () => {
-        if (exists) window.shell.openFile(att.path);
+        if (exists) window.shell.openAttachment(task.id, att.file);
       });
       li.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (exists) window.shell.revealFile(att.path);
+        if (exists) window.shell.revealAttachment(task.id, att.file);
       });
 
       const rm = document.createElement('button');
@@ -724,7 +728,8 @@
       rm.innerHTML = closeIcon;
       rm.addEventListener('click', (e) => {
         e.stopPropagation();
-        task.attachments = task.attachments.filter((a) => a.path !== att.path);
+        if (att.file) window.shell.removeFile(task.id, att.file);
+        task.attachments = task.attachments.filter((a) => a !== att);
         commitSave();
         renderAttachments();
       });
@@ -796,16 +801,17 @@
       e.stopPropagation();
       rowEl.classList.remove('drop-target');
     });
-    rowEl.addEventListener('drop', (e) => {
+    rowEl.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       rowEl.classList.remove('drop-target');
       if (!target.attachments) target.attachments = [];
       for (const file of e.dataTransfer.files) {
         const filePath = window.shell.getPathForFile(file);
-        if (filePath && !target.attachments.some((a) => a.path === filePath)) {
-          target.attachments.push({ name: file.name, path: filePath });
-        }
+        if (!filePath) continue;
+        const result = await window.shell.copyFile(task.id, filePath);
+        if (result.error) continue;
+        target.attachments.push(result);
       }
       commitSave();
       renderSubtasks();
@@ -819,18 +825,21 @@
     target.attachments.forEach((att) => {
       const li = document.createElement('li');
       li.className = 'st-att-item' + (isChild ? ' child-att' : '');
-      // Check existence async and update
-      window.shell.fileExists(att.path).then((exists) => {
-        if (!exists) li.classList.add('missing');
-      });
+      if (att.file) {
+        window.shell.resolveAttachment(task.id, att.file).then((info) => {
+          if (!info.exists) li.classList.add('missing');
+        });
+      } else {
+        li.classList.add('missing');
+      }
 
       const name = document.createElement('span');
       name.className = 'att-name';
       name.textContent = att.name;
-      name.title = att.path;
+      name.title = att.file || '';
 
       li.addEventListener('click', () => {
-        window.shell.openFile(att.path);
+        if (att.file) window.shell.openAttachment(task.id, att.file);
       });
 
       const rm = document.createElement('button');
@@ -839,7 +848,8 @@
       rm.innerHTML = closeIcon;
       rm.addEventListener('click', (e) => {
         e.stopPropagation();
-        target.attachments = target.attachments.filter((a) => a.path !== att.path);
+        if (att.file) window.shell.removeFile(task.id, att.file);
+        target.attachments = target.attachments.filter((a) => a !== att);
         commitSave();
         renderSubtasks();
       });
@@ -1078,9 +1088,9 @@
     if (files.length === 0) return;
     if (!task.attachments) task.attachments = [];
     for (const f of files) {
-      if (!task.attachments.some((a) => a.path === f.path)) {
-        task.attachments.push(f);
-      }
+      const result = await window.shell.copyFile(task.id, f.path);
+      if (result.error) continue;
+      task.attachments.push(result);
     }
     commitSave();
     renderAttachments();
@@ -1105,7 +1115,7 @@
   document.addEventListener('dragover', (e) => {
     e.preventDefault();
   });
-  document.addEventListener('drop', (e) => {
+  document.addEventListener('drop', async (e) => {
     e.preventDefault();
     dragCounter = 0;
     document.body.classList.remove('drop-active');
@@ -1113,9 +1123,10 @@
     if (!task.attachments) task.attachments = [];
     for (const file of e.dataTransfer.files) {
       const filePath = window.shell.getPathForFile(file);
-      if (filePath && !task.attachments.some((a) => a.path === filePath)) {
-        task.attachments.push({ name: file.name, path: filePath });
-      }
+      if (!filePath) continue;
+      const result = await window.shell.copyFile(task.id, filePath);
+      if (result.error) continue;
+      task.attachments.push(result);
     }
     commitSave();
     renderAttachments();
