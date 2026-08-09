@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, dialog, shell, globalShortcut } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -7,6 +7,7 @@ let qlProcess = null;
 
 let win = null;
 let detailWin = null;
+let tray = null;
 let items = [];
 let settings = { fontScale: 1 };
 
@@ -265,6 +266,16 @@ function createWindow() {
   const area = screen.getPrimaryDisplay().workArea;
   const defaultHeight = saved && saved.height > 120 ? saved.height : 380;
 
+  // Clamp saved position so the window never opens off-screen
+  if (saved) {
+    saved.x = Math.max(area.x, Math.min(saved.x, area.x + area.width - saved.width));
+    saved.y = Math.max(area.y, Math.min(saved.y, area.y + area.height - saved.height));
+  }
+
+  // Prevent auto-tuck during startup positioning
+  untuckCooldown = true;
+  setTimeout(() => { untuckCooldown = false; }, 1200);
+
   win = new BrowserWindow({
     width: saved ? saved.width : 300,
     height: defaultHeight,
@@ -369,6 +380,94 @@ function openDetail(taskId) {
   });
 }
 
+// ── Tray & window toggle ──────────────────────────────────
+
+function toggleMainWindow() {
+  if (!win || win.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (detailWin && !detailWin.isDestroyed()) {
+    detailWin.close();
+    return;
+  }
+  if (isTucked) {
+    untuck();
+    win.show();
+    win.focus();
+    return;
+  }
+  if (win.isVisible()) {
+    win.hide();
+  } else {
+    win.show();
+    win.focus();
+  }
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, 'trayTemplate.png');
+  tray = new Tray(iconPath);
+  tray.setToolTip('Checklist');
+
+  tray.on('click', () => toggleMainWindow());
+
+  tray.on('right-click', () => {
+    const menu = Menu.buildFromTemplate([
+      { label: 'Show Checklist', click: () => {
+        if (!win || win.isDestroyed()) { createWindow(); return; }
+        if (isTucked) untuck();
+        win.show();
+        win.focus();
+      }},
+      { type: 'separator' },
+      { label: 'Reveal attachments folder', click: () => {
+        const dir = attachmentsBaseDir();
+        ensureDir(dir);
+        shell.openPath(dir);
+      }},
+      { type: 'separator' },
+      { role: 'quit' }
+    ]);
+    tray.popUpContextMenu(menu);
+  });
+}
+
+function setupAppMenu() {
+  const template = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { label: 'Close Window', accelerator: 'CmdOrCtrl+W', click: () => {
+          const focused = BrowserWindow.getFocusedWindow();
+          if (focused && focused === detailWin) {
+            detailWin.close();
+          }
+        }}
+      ]
+    }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {
     app.dock.hide();
@@ -376,7 +475,9 @@ app.whenReady().then(() => {
   loadSettings();
   loadTasks();
   migrateAllAttachments();
+  setupAppMenu();
   createWindow();
+  createTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -609,5 +710,6 @@ ipcMain.on('tasks:migrate', (event, migrated) => {
 });
 
 app.on('window-all-closed', () => {
-  app.quit();
+  // With a tray icon, don't quit when windows are closed/hidden on macOS
+  if (process.platform !== 'darwin') app.quit();
 });
